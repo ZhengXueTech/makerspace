@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>小雞過馬路 (JavaScript 版)</title>
+    <style>
+        /* 1. CSS 樣式 */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding-top: 20px;
+        }
+        canvas {
+            border: 2px solid #333;
+            background-color: #72a641; /* 草地背景 */
+            display: block;
+        }
+        #score-display {
+            margin-bottom: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        #game-info {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 10px;
+            display: none; /* 預設隱藏 */
+        }
+    </style>
+</head>
+<body>
+
+    <div id="score-display">分數: 0</div>
+    <canvas id="gameCanvas" width="500" height="500"></canvas>
+    
+    <div id="game-info">
+        <h2>遊戲結束 (GAME OVER)</h2>
+        <p>你的分數是: <span id="final-score">0</span></p>
+        <p>按 **[空白鍵]** 重新開始</p>
+    </div>
+
+    <script>
+        // 2. JavaScript 遊戲邏輯
+        
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score-display');
+        const gameInfo = document.getElementById('game-info');
+        const finalScoreDisplay = document.getElementById('final-score');
+
+        // --- 遊戲設定 ---
+        const GRID_SIZE = 40;
+        const LANE_COUNT = 4; // 四條車道
+        const GAME_HEIGHT = canvas.height;
+        const GAME_WIDTH = canvas.width;
+        
+        let chicken;
+        let obstacles = [];
+        let score = 0;
+        let isGameOver = false;
+        let gameLoopInterval;
+
+        // --- 小雞物件 ---
+        function Chicken() {
+            this.x = GAME_WIDTH / 2 - GRID_SIZE / 2;
+            this.y = GAME_HEIGHT - GRID_SIZE;
+            this.size = GRID_SIZE;
+            
+            // 繪製小雞 (黃色方塊)
+            this.draw = function() {
+                ctx.fillStyle = 'yellow';
+                ctx.fillRect(this.x, this.y, this.size, this.size);
+            };
+
+            // 移動小雞
+            this.move = function(dx, dy) {
+                if (isGameOver) return;
+                
+                this.x += dx;
+                this.y += dy;
+
+                // 邊界檢查 (防止移出螢幕)
+                this.x = Math.max(0, Math.min(this.x, GAME_WIDTH - this.size));
+                this.y = Math.max(0, Math.min(this.y, GAME_HEIGHT - this.size));
+
+                // 每次向上移動，分數加 1
+                if (dy < 0) {
+                    score++;
+                    scoreDisplay.textContent = `分數: ${score}`;
+                }
+            };
+        }
+
+        // --- 障礙物 (車輛) 物件 ---
+        function Obstacle(x, y, width, speed) {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = GRID_SIZE;
+            this.speed = speed;
+            this.color = 'red';
+            
+            // 繪製車輛
+            this.draw = function() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+            };
+
+            // 更新位置
+            this.update = function() {
+                this.x += this.speed;
+            };
+
+            // 碰撞檢測
+            this.checkCollision = function(player) {
+                return (
+                    player.x < this.x + this.width &&
+                    player.x + player.size > this.x &&
+                    player.y < this.y + this.height &&
+                    player.y + player.size > this.y
+                );
+            };
+        }
+
+        // --- 遊戲初始化與重置 ---
+        function initGame() {
+            chicken = new Chicken();
+            obstacles = [];
+            score = 0;
+            isGameOver = false;
+            scoreDisplay.textContent = `分數: 0`;
+            gameInfo.style.display = 'none';
+
+            // 設定路段 Y 座標
+            const roadLanes = [];
+            // 從畫面底部算起，給小雞留一行草地
+            const startY = GAME_HEIGHT - (GRID_SIZE * 2); 
+            // 注意: 為了配合單格移動，這裡的車道緊密排列，每隔 GRID_SIZE 距離
+            for (let i = 0; i < LANE_COUNT; i++) {
+                roadLanes.push(startY - (i * GRID_SIZE)); 
+            }
+
+            // 隨機產生初始障礙物
+            roadLanes.forEach(y => {
+                // 決定車道速度和方向
+                const speed = (Math.random() > 0.5 ? 1 : -1) * (1.5 + Math.random() * 2);
+                
+                // 隨機生成 1 到 3 輛車
+                for (let i = 0; i < Math.floor(Math.random() * 3) + 1; i++) {
+                    const width = GRID_SIZE * (1 + Math.random() * 2); // 隨機寬度
+                    // 讓車輛分散，從畫面上方或下方隨機位置開始
+                    const x = Math.random() * GAME_WIDTH - width; 
+                    obstacles.push(new Obstacle(x, y, width, speed));
+                }
+            });
+
+            // 開始遊戲循環
+            clearInterval(gameLoopInterval);
+            gameLoopInterval = setInterval(gameLoop, 1000 / 60); // 60 FPS
+        }
+
+        // --- 遊戲主循環 ---
+        function gameLoop() {
+            if (isGameOver) {
+                clearInterval(gameLoopInterval);
+                finalScoreDisplay.textContent = score;
+                gameInfo.style.display = 'block';
+                return;
+            }
+
+            // 1. 繪製背景 (草地和道路)
+            drawBackground();
+
+            // 2. 更新與繪製小雞
+            chicken.draw();
+
+            // 3. 更新與繪製障礙物
+            for (let i = 0; i < obstacles.length; i++) {
+                const obs = obstacles[i];
+                obs.update();
+                obs.draw();
+
+                // 4. 碰撞檢測
+                if (obs.checkCollision(chicken)) {
+                    isGameOver = true;
+                }
+                
+                // 5. 處理障礙物移出螢幕
+                if (obs.speed > 0 && obs.x > GAME_WIDTH || obs.speed < 0 && obs.x + obs.width < 0) {
+                    // 移除移出螢幕的障礙物並生成新的
+                    obstacles.splice(i, 1);
+                    i--;
+                    spawnObstacle(obs.y);
+                }
+            }
+        }
+
+        // --- 繪製背景和道路 ---
+        function drawBackground() {
+            // 重新繪製整個畫布為草地
+            ctx.fillStyle = '#72a641'; 
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+            // 繪製道路
+            const roadColor = '#3e3e3e';
+            const roadLanes = [];
+            const startY = GAME_HEIGHT - (GRID_SIZE * 2); 
+            for (let i = 0; i < LANE_COUNT; i++) {
+                roadLanes.push(startY - (i * GRID_SIZE)); 
+            }
+            
+            roadLanes.forEach(y => {
+                ctx.fillStyle = roadColor;
+                ctx.fillRect(0, y, GAME_WIDTH, GRID_SIZE);
+            });
+        }
+        
+        // --- 生成單個障礙物 ---
+        function spawnObstacle(y_pos) {
+            const speed = (Math.random() > 0.5 ? 1 : -1) * (1.5 + Math.random() * 2);
+            const width = GRID_SIZE * (1 + Math.random() * 2);
+            let x;
+            
+            if (speed > 0) { // 從左邊進入
+                x = -width;
+            } else { // 從右邊進入
+                x = GAME_WIDTH;
+            }
+            
+            obstacles.push(new Obstacle(x, y_pos, width, speed));
+        }
+
+        // --- 處理鍵盤輸入 ---
+        document.addEventListener('keydown', (e) => {
+            if (isGameOver && e.code === 'Space') {
+                initGame();
+                return;
+            }
+            
+            // *** 修改的部分：將移動距離從 2 格 (GRID_SIZE * 2) 改為 1 格 (GRID_SIZE) ***
+            switch (e.key) {
+                case 'ArrowUp':
+                    chicken.move(0, -GRID_SIZE); // 向上移動 1 格
+                    break;
+                case 'ArrowDown':
+                    chicken.move(0, GRID_SIZE); // 向下移動 1 格
+                    break;
+                case 'ArrowLeft':
+                    chicken.move(-GRID_SIZE, 0);
+                    break;
+                case 'ArrowRight':
+                    chicken.move(GRID_SIZE, 0);
+                    break;
+            }
+        });
+
+        // 啟動遊戲
+        initGame();
+
+    </script>
+</body>
+</html>
+

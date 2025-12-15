@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>This is OSU???</title>
+    <style>
+        /* --- 基本設定 --- */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #111;
+            font-family: Arial, sans-serif;
+            color: white;
+            user-select: none; /* 防止反白文字 */
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* --- 遊戲畫布 --- */
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: #222;
+            display: none;
+        }
+
+        /* --- 遊戲內 UI 介面 --- */
+        #gameUI {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: none; /* 預設隱藏 */
+            pointer-events: none; /* 讓滑鼠可以點穿 UI */
+        }
+
+        /* 總分數 */
+        #scoreDisplay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 32px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        /* 時機判斷計分板 */
+        #judgmentDisplay {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 24px;
+            text-align: right;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        #judgmentDisplay div {
+            margin-bottom: 5px;
+        }
+        #judgmentDisplay span {
+            display: inline-block;
+            width: 60px;
+            text-align: left;
+            font-weight: bold;
+        }
+        
+        /* 連擊數 */
+        #comboDisplay {
+            position: absolute;
+            bottom: 60px; /* 移到時間條上方 */
+            left: 20px;
+            font-size: 48px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.7);
+            transition: transform 0.1s ease-out;
+        }
+
+        /* 時間條 */
+        #timerDisplay {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 36px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        /* 血條 */
+        #hpBarContainer {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 400px;
+            height: 25px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 2px solid #555;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        #hpBar {
+            width: 100%;
+            height: 100%;
+            background-color: #4CAF50; /* 綠色 */
+            transition: width 0.2s linear; /* HP 變化動畫 */
+        }
+
+        /* --- 遮罩層 (用於開始/暫停/結束) --- */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 20;
+        }
+
+        .overlay h1 {
+            font-size: 60px;
+            margin-bottom: 30px;
+        }
+
+        .overlay button {
+            font-size: 30px;
+            padding: 15px 30px;
+            margin: 10px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            transition: background-color 0.3s;
+            min-width: 200px;
+        }
+        .overlay button:hover {
+            background-color: #45a049;
+        }
+
+        /* --- 設定選項樣式 --- */
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 10px 0;
+            width: 350px; /* 統一寬度 */
+        }
+        .setting-item label {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .setting-item input[type="range"] {
+            width: 100%; /* 滑條佔滿容器 */
+            cursor: pointer;
+        }
+        .setting-item .slider-value {
+            font-size: 20px;
+            margin-top: 5px;
+            color: #ccc;
+        }
+        
+        /* 暫停選單 (預設隱藏) */
+        #pauseMenu { display: none; }
+        
+        /* 遊戲結束畫面 (預設隱藏) */
+        #gameOverScreen { display: none; }
+        #gameOverReason {
+            font-size: 28px;
+            color: #ffcdd2;
+            margin-bottom: 20px;
+        }
+
+        /* 回主畫面按鈕的特殊顏色 */
+        #mainMenuButton, #gameOverMainMenuButton {
+            background-color: #f44336; /* 紅色 */
+        }
+        #mainMenuButton:hover, #gameOverMainMenuButton:hover {
+            background-color: #d32f2f;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="startScreen" class="overlay">
+        <h1>This is OSU???</h1>
+        
+        <div class="setting-item">
+            <label for="spawnRateSlider">圓圈出現頻率:</label>
+            <input type="range" id="spawnRateSlider" min="200" max="2000" value="1000" step="100">
+            <span class="slider-value" id="spawnRateValue">1.0s</span>
+        </div>
+
+        <div class="setting-item">
+            <label for="approachSpeedSlider">圓環靠近速度:</label>
+            <input type="range" id="approachSpeedSlider" min="500" max="5000" value="2500" step="50">
+            <span class="slider-value" id="approachSpeedValue">2.5s</span>
+        </div>
+
+        <button id="startButton">開始遊戲</button>
+    </div>
+
+    <div id="pauseMenu" class="overlay">
+        <h1>已暫停</h1>
+
+        <div class="setting-item">
+            <label for="pauseSpawnRateSlider">圓圈出現頻率:</label>
+            <input type="range" id="pauseSpawnRateSlider" min="200" max="2000" value="1000" step="100">
+            <span class="slider-value" id="pauseSpawnRateValue">1.0s</span>
+            <span style="font-size: 14px; color: #999;">(僅對新圓圈生效)</span>
+        </div>
+        
+        <div class="setting-item">
+            <label for="pauseApproachSpeedSlider">圓環靠近速度:</label>
+            <input type="range" id="pauseApproachSpeedSlider" min="500" max="5000" value="2500" step="50">
+            <span class="slider-value" id="pauseApproachSpeedValue">2.5s</span>
+            <span style="font-size: 14px; color: #999;">(僅對新圓圈生效)</span>
+        </div>
+
+        <button id="resumeButton">繼續遊戲</button>
+        <button id="restartButton">重新開始</button>
+        <button id="mainMenuButton">回主畫面</button>
+    </div>
+
+    <div id="gameOverScreen" class="overlay">
+        <h1>遊戲結束</h1>
+        <div id="gameOverReason">你堅持了下來！</div>
+        <div style="font-size: 24px; margin-bottom: 20px;">最終分數: <span id="finalScore">0</span></div>
+        <button id="gameOverRestartButton">重新開始</button>
+        <button id="gameOverMainMenuButton">回主畫面</button>
+    </div>
+
+
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="gameUI">
+        <div id="scoreDisplay">分數: 0</div>
+        
+        <div id="judgmentDisplay">
+            <div><span id="scorePerfect">0</span> : 完美 (Perfect)</div>
+            <div><span id="scoreFast">0</span> : 太快 (Fast)</div>
+            <div><span id="scoreSlow">0</span> : 太慢 (Slow)</div>
+            <div><span id="scoreMiss">0</span> : 錯過 (Miss)</div>
+        </div>
+
+        <div id="hpBarContainer">
+            <div id="hpBar"></div>
+        </div>
+        <div id="comboDisplay"></div>
+        <div id="timerDisplay">1:00.0</div>
+    </div>
+
+    <script>
+        // --- 1. 獲取 DOM 元素 ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameUI = document.getElementById('gameUI');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        
+        const judgmentDisplay = document.getElementById('judgmentDisplay');
+        const scorePerfectSpan = document.getElementById('scorePerfect');
+        const scoreFastSpan = document.getElementById('scoreFast');
+        const scoreSlowSpan = document.getElementById('scoreSlow');
+        const scoreMissSpan = document.getElementById('scoreMiss');
+        
+        const comboDisplay = document.getElementById('comboDisplay');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const hpBar = document.getElementById('hpBar');
+
+        // 選單
+        const startScreen = document.getElementById('startScreen');
+        const startButton = document.getElementById('startButton');
+        const pauseMenu = document.getElementById('pauseMenu');
+        const resumeButton = document.getElementById('resumeButton');
+        const restartButton = document.getElementById('restartButton');
+        const mainMenuButton = document.getElementById('mainMenuButton');
+
+        // 結束畫面
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const gameOverReason = document.getElementById('gameOverReason');
+        const finalScore = document.getElementById('finalScore');
+        const gameOverRestartButton = document.getElementById('gameOverRestartButton');
+        const gameOverMainMenuButton = document.getElementById('gameOverMainMenuButton');
+
+        // 【新增】出現頻率滑條
+        const spawnRateSlider = document.getElementById('spawnRateSlider');
+        const spawnRateValue = document.getElementById('spawnRateValue');
+        const pauseSpawnRateSlider = document.getElementById('pauseSpawnRateSlider');
+        const pauseSpawnRateValue = document.getElementById('pauseSpawnRateValue');
+        
+        // 靠近速度滑條
+        const approachSpeedSlider = document.getElementById('approachSpeedSlider');
+        const approachSpeedValue = document.getElementById('approachSpeedValue');
+        const pauseApproachSpeedSlider = document.getElementById('pauseApproachSpeedSlider');
+        const pauseApproachSpeedValue = document.getElementById('pauseApproachSpeedValue');
+
+        // --- 2. 遊戲狀態變數 ---
+        let score = 0, scorePerfect = 0, scoreFast = 0, scoreSlow = 0, scoreMiss = 0, combo = 0;
+        let hp = 10, maxHp = 10;
+
+        let gameRunning = false;
+        let isPaused = false;
+        let pauseStartTime = 0;
+
+        let circles = [];
+        let residuals = [];
+        let mousePos = { x: 0, y: 0 };
+        
+        let spawnInterval, gameTimerInterval, hpDrainInterval;
+        
+        let spawnRate; // 全域變數
+        let approachTime; // 全域變數
+        let gameStartTime = 0;
+        const GAME_DURATION = 60000;
+
+        // --- 3. 遊戲設定 ---
+        const CIRCLE_RADIUS = 50;
+        const PERFECT_WINDOW_EARLY = 0.85; 
+        const PERFECT_WINDOW_LATE = 1.05;
+        const DESPAWN_MARGIN = 1.15;
+        const RESIDUAL_LIFETIME = 500;
+
+        // --- 4. 輔助函式 ---
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        function updateScore() { scoreDisplay.textContent = `分數: ${score}`; }
+
+        function updateJudgmentScores() {
+            scorePerfectSpan.textContent = scorePerfect;
+            scoreFastSpan.textContent = scoreFast;
+            scoreSlowSpan.textContent = scoreSlow;
+            scoreMissSpan.textContent = scoreMiss;
+        }
+        
+        function updateComboDisplay() {
+            if (combo > 1) {
+                comboDisplay.textContent = `${combo}x`;
+                comboDisplay.style.transform = 'scale(1.2)';
+                setTimeout(() => { comboDisplay.style.transform = 'scale(1)'; }, 100);
+            } else {
+                comboDisplay.textContent = '';
+            }
+        }
+        
+        function updateHpBar() {
+            hp = Math.max(0, Math.min(maxHp, hp));
+            const hpPercent = (hp / maxHp) * 100;
+            hpBar.style.width = hpPercent + '%';
+            
+            if (hp <= 0 && gameRunning) {
+                endGame('hp');
+            }
+        }
+        
+        function updateGameTimer() {
+            if (!gameRunning || isPaused) return;
+            
+            const elapsed = Date.now() - gameStartTime;
+            const remaining = GAME_DURATION - elapsed;
+
+            if (remaining <= 0) {
+                timerDisplay.textContent = '0:00.0';
+                endGame('time');
+                return;
+            }
+
+            const minutes = Math.floor(remaining / 60000);
+            const seconds = Math.floor((remaining % 60000) / 1000);
+            const milliseconds = Math.floor((remaining % 1000) / 100);
+            
+            timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}.${milliseconds}`;
+        }
+        
+        function passiveHpDrain() {
+            if (!gameRunning || isPaused) return;
+            hp -= 0.5;
+            updateHpBar();
+        }
+
+        function getDistance(x1, y1, x2, y2) {
+            const dx = x1 - x2; const dy = y1 - y2;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function isMouseOverCircle(circle) {
+            const distance = getDistance(mousePos.x, mousePos.y, circle.x, circle.y);
+            return distance < circle.radius;
+        }
+
+        /** 【新增】更新出現頻率 (同步滑條) */
+        function updateSpawnRate(newValue) {
+            spawnRate = parseInt(newValue, 10);
+            const seconds = (spawnRate / 1000).toFixed(1) + 's';
+            
+            spawnRateSlider.value = spawnRate;
+            pauseSpawnRateSlider.value = spawnRate;
+
+            spawnRateValue.textContent = seconds;
+            pauseSpawnRateValue.textContent = seconds;
+        }
+        
+        /** 更新靠近速度 (同步滑條) */
+        function updateApproachTime(newValue) {
+            approachTime = parseInt(newValue, 10);
+            const seconds = (approachTime / 1000).toFixed(1) + 's';
+            
+            approachSpeedSlider.value = approachTime;
+            pauseApproachSpeedSlider.value = approachTime;
+
+            approachSpeedValue.textContent = seconds;
+            pauseApproachSpeedValue.textContent = seconds;
+        }
+        
+        function addResidual(x, y, type) {
+            residuals.push({
+                x: x, y: y, type: type, createdAt: Date.now(), lifetime: RESIDUAL_LIFETIME
+            });
+        }
+        
+        function clearAllTimers() {
+            clearInterval(spawnInterval);
+            clearInterval(gameTimerInterval);
+            clearInterval(hpDrainInterval);
+        }
+
+        // --- 5. 遊戲核心邏輯 ---
+
+        function spawnCircle() {
+            if (!gameRunning || isPaused) return;
+
+            const radius = CIRCLE_RADIUS;
+            const x = Math.random() * (canvas.width - radius * 2) + radius;
+            const y = Math.random() * (canvas.height - radius * 2) + radius;
+            const createdAt = Date.now();
+            const currentApproachTime = approachTime; 
+
+            const newCircle = {
+                x: x, y: y, radius: radius, createdAt: createdAt,
+                lifetime: currentApproachTime, 
+                despawnTime: createdAt + currentApproachTime * DESPAWN_MARGIN, 
+                color: 'rgba(0, 150, 255, 0.7)',
+                hoverColor: 'rgba(255, 0, 150, 0.9)'
+            };
+            circles.push(newCircle);
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const now = Date.now();
+            let mouseIsHovering = false;
+
+            // 1. 繪製命中標記 (Residuals)
+            for (let i = residuals.length - 1; i >= 0; i--) {
+                const res = residuals[i];
+                const lifeLived = now - res.createdAt;
+                
+                if (lifeLived > res.lifetime) {
+                    residuals.splice(i, 1);
+                    continue;
+                }
+                
+                const opacity = 1 - (lifeLived / res.lifetime);
+                ctx.font = 'bold 48px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                if (res.type === 'fast') {
+                    ctx.fillStyle = `rgba(255, 165, 0, ${opacity})`; // 橘色
+                    ctx.beginPath(); ctx.arc(res.x, res.y, 10, 0, Math.PI * 2); ctx.fill();
+                } else if (res.type === 'slow') {
+                    ctx.fillStyle = `rgba(0, 255, 0, ${opacity})`; // 綠色
+                    ctx.beginPath(); ctx.arc(res.x, res.y, 10, 0, Math.PI * 2); ctx.fill();
+                } else if (res.type === 'miss') {
+                    ctx.fillStyle = `rgba(255, 0, 0, ${opacity})`; // 紅色
+                    ctx.fillText('X', res.x, res.y);
+                }
+            }
+
+            // 2. 繪製圓圈
+            for (let i = circles.length - 1; i >= 0; i--) {
+                const circle = circles[i];
+
+                // 【修改】檢查是否 Miss
+                if (now > circle.despawnTime) {
+                    addResidual(circle.x, circle.y, 'miss');
+                    scoreMiss++;
+                    combo = 0; // 斷 Combo
+                    
+                    hp -= 1.0; // 【更新】Miss 扣 1 HP
+                    updateHpBar(); // 更新 HP
+                    
+                    updateJudgmentScores();
+                    updateComboDisplay();
+                    
+                    circles.splice(i, 1);
+                    continue;
+                }
+
+                const isHovering = isMouseOverCircle(circle);
+                if (isHovering) { mouseIsHovering = true; }
+
+                // --- 繪製 ---
+                ctx.beginPath();
+                ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2);
+                ctx.fillStyle = isHovering ? circle.hoverColor : circle.color;
+                ctx.fill();
+                ctx.strokeStyle = 'white'; ctx.lineWidth = 3; ctx.stroke();
+
+                // 繪製 "接近" 圓圈
+                const lifeLived = now - circle.createdAt;
+                const lifePercent = Math.min(1, lifeLived / circle.lifetime);
+                const approachRadius = circle.radius + (100 * (1 - lifePercent));
+
+                ctx.beginPath();
+                ctx.arc(circle.x, circle.y, approachRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = isHovering ? circle.hoverColor : circle.color;
+                ctx.lineWidth = 4; ctx.stroke();
+            }
+
+            canvas.style.cursor = mouseIsHovering ? 'pointer' : 'default';
+            requestAnimationFrame(gameLoop);
+        }
+
+        function handleHit(judgement, index) {
+            const circle = circles[index];
+            combo++;
+            
+            if (judgement === 'fast') {
+                scoreFast++; score += 10; hp -= 0.5;
+                addResidual(circle.x, circle.y, 'fast');
+            } else if (judgement === 'perfect') {
+                scorePerfect++; score += 50; hp += 1.0;
+                // Perfect 不產生標記
+            } else if (judgement === 'slow') {
+                scoreSlow++; score += 10; hp -= 0.5;
+                addResidual(circle.x, circle.y, 'slow');
+            }
+
+            updateScore();
+            updateJudgmentScores();
+            updateComboDisplay();
+            updateHpBar();
+            circles.splice(index, 1);
+        }
+
+        function startGame() {
+            score = 0; scorePerfect = 0; scoreFast = 0; scoreSlow = 0; scoreMiss = 0; combo = 0;
+            hp = maxHp;
+            circles = [];
+            residuals = [];
+            gameRunning = true;
+            isPaused = false;
+            
+            updateScore();
+            updateJudgmentScores();
+            updateComboDisplay();
+            updateHpBar();
+
+            // 【修改】spawnRate 和 approachTime 已由全域變數設定
+            
+            startScreen.style.display = 'none';
+            pauseMenu.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            canvas.style.display = 'block';
+            gameUI.style.display = 'block';
+
+            resizeCanvas();
+
+            clearAllTimers();
+            gameStartTime = Date.now();
+            spawnInterval = setInterval(spawnCircle, spawnRate); // 使用全域 spawnRate
+            gameTimerInterval = setInterval(updateGameTimer, 100);
+            hpDrainInterval = setInterval(passiveHpDrain, 1000);
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function pauseGame() {
+            if (!gameRunning) return; 
+
+            gameRunning = false;
+            isPaused = true;
+            pauseStartTime = Date.now();
+            clearAllTimers();
+            pauseMenu.style.display = 'flex';
+        }
+
+        function resumeGame() {
+            if (!isPaused) return;
+
+            gameRunning = true;
+            isPaused = false;
+            
+            const timePaused = Date.now() - pauseStartTime;
+            
+            for (const circle of circles) {
+                circle.createdAt += timePaused;
+                circle.despawnTime += timePaused;
+            }
+            for (const res of residuals) {
+                res.createdAt += timePaused;
+            }
+            gameStartTime += timePaused;
+
+            pauseMenu.style.display = 'none';
+
+            // 【修改】使用全域 spawnRate (可能在暫停時被改動)
+            spawnInterval = setInterval(spawnCircle, spawnRate); 
+            gameTimerInterval = setInterval(updateGameTimer, 100);
+            hpDrainInterval = setInterval(passiveHpDrain, 1000);
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function restartGame() {
+            clearAllTimers();
+            startGame();
+        }
+
+        function returnToMainMenu() {
+            gameRunning = false;
+            isPaused = false;
+            clearAllTimers();
+            circles = [];
+            residuals = [];
+
+            pauseMenu.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            gameCanvas.style.display = 'none';
+            gameUI.style.display = 'none';
+
+            startScreen.style.display = 'flex';
+        }
+        
+        function endGame(reason) {
+            if (!gameRunning) return;
+            
+            gameRunning = false;
+            clearAllTimers();
+            
+            if (reason === 'hp') {
+                gameOverReason.textContent = 'HP 歸零了！';
+            } else if (reason === 'time') {
+                gameOverReason.textContent = '時間到！';
+            }
+            finalScore.textContent = score;
+            
+            gameUI.style.display = 'none';
+            setTimeout(() => {
+                gameCanvas.style.display = 'none';
+                residuals = [];
+            }, 500); 
+            
+            gameOverScreen.style.display = 'flex';
+        }
+
+
+        // --- 6. 事件監聽器 ---
+
+        startButton.addEventListener('click', startGame);
+        resumeButton.addEventListener('click', resumeGame);
+        restartButton.addEventListener('click', restartGame);
+        mainMenuButton.addEventListener('click', returnToMainMenu);
+        
+        gameOverRestartButton.addEventListener('click', restartGame);
+        gameOverMainMenuButton.addEventListener('click', returnToMainMenu);
+
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('mousemove', (event) => { mousePos.x = event.clientX; mousePos.y = event.clientY; });
+
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                if (gameRunning) {
+                    pauseGame();
+                } else if (isPaused) {
+                    resumeGame();
+                }
+            }
+            
+            if (!gameRunning) return;
+
+            if (event.key === 'z' || event.key === 'x') {
+                const now = Date.now();
+                for (let i = circles.length - 1; i >= 0; i--) {
+                    const circle = circles[i];
+                    
+                    if (isMouseOverCircle(circle)) {
+                        const lifePercent = (now - circle.createdAt) / circle.lifetime;
+
+                        let judgement;
+                        if (lifePercent < PERFECT_WINDOW_EARLY) { judgement = 'fast'; }
+                        else if (lifePercent < PERFECT_WINDOW_LATE) { judgement = 'perfect'; }
+                        else { judgement = 'slow'; }
+                        
+                        handleHit(judgement, i);
+                        break; 
+                    }
+                }
+            }
+        });
+
+        // --- 7. 初始化 ---
+        
+        // 【新增】監聽出現頻率滑條
+        spawnRateSlider.addEventListener('input', (e) => {
+            updateSpawnRate(e.target.value);
+        });
+        pauseSpawnRateSlider.addEventListener('input', (e) => {
+            updateSpawnRate(e.target.value);
+        });
+        
+        // 監聽靠近速度滑條
+        approachSpeedSlider.addEventListener('input', (e) => {
+            updateApproachTime(e.target.value);
+        });
+        pauseApproachSpeedSlider.addEventListener('input', (e) => {
+            updateApproachTime(e.target.value);
+        });
+
+        // 頁面載入時，立即初始化全域變數和顯示
+        updateSpawnRate(spawnRateSlider.value);
+        updateApproachTime(approachSpeedSlider.value);
+
+    </script>
+</body>
+</html>
+
