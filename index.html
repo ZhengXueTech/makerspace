@@ -3,70 +3,625 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的 HTML 遊戲作品集 - [114級創客社]</title>
+    <title>🎮 新北中正國中創客中心 - 學生HTML遊戲作品展</title>
     <style>
-        /* 簡單的 CSS 樣式讓頁面看起來更舒服 */
-        body {
-            font-family: Arial, sans-serif;
-            margin: 40px;
-            line-height: 1.6;
-        }
-        h1 {
-            color: #333;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
-        }
-        .game-list {
-            list-style: none;
+        * {
+            margin: 0;
             padding: 0;
+            box-sizing: border-box;
         }
-        .game-list li {
-            margin-bottom: 15px;
-            border: 1px solid #ddd;
-            padding: 10px;
-            border-radius: 5px;
+
+        body {
+            font-family: 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            background-attachment: fixed;
         }
-        .game-list li a {
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* 頁首設計 */
+        header {
+            text-align: center;
+            color: white;
+            padding: 40px 0;
+            animation: fadeIn 0.8s ease;
+            position: relative;
+        }
+
+        .header-content {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        }
+
+        h1 {
+            font-size: 2.8em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            background: linear-gradient(45deg, #fff, #ffd700);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
             font-size: 1.2em;
-            text-decoration: none;
-            color: #007bff;
+            opacity: 0.95;
+            margin-bottom: 10px;
         }
-        .game-list li a:hover {
-            text-decoration: underline;
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+            font-size: 1.1em;
         }
-        .description {
-            color: #666;
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+        }
+
+        /* 篩選按鈕 */
+        .filter-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px;
+            margin: 30px 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .filter-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .filter-label {
+            color: #667eea;
+            font-weight: bold;
+            font-size: 1em;
+        }
+
+        .filter-btn {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .filter-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            background: #667eea;
+            color: white;
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        /* 搜尋框 */
+        .search-box {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            border-radius: 25px;
+            width: 250px;
+            font-size: 1em;
+        }
+
+        /* 作品卡片網格 */
+        .projects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+            animation: fadeInUp 0.6s ease;
+        }
+
+        .project-card {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .project-card:hover {
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .project-thumbnail {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4em;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .project-thumbnail::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: rotate(45deg);
+            transition: all 0.5s;
+        }
+
+        .project-card:hover .project-thumbnail::before {
+            animation: shine 0.5s ease;
+        }
+
+        @keyframes shine {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+        }
+
+        .project-info {
+            padding: 25px;
+        }
+
+        .project-title {
+            font-size: 1.4em;
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .project-english {
+            color: #999;
             font-size: 0.9em;
-            margin-top: 5px;
+            margin-bottom: 12px;
+            font-style: italic;
         }
+
+        .project-description {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.6;
+            min-height: 60px;
+        }
+
+        .project-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .tag {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+        }
+
+        .project-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+
+        .project-author {
+            color: #999;
+            font-size: 0.95em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .project-date {
+            color: #999;
+            font-size: 0.9em;
+        }
+
+        .project-link {
+            display: inline-block;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 10px 25px;
+            border-radius: 25px;
+            text-decoration: none;
+            transition: all 0.3s;
+            font-weight: bold;
+            margin-top: 15px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .project-link:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .year-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 215, 0, 0.95);
+            color: #333;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .type-badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        /* 動畫效果 */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 768px) {
+            h1 { font-size: 2em; }
+            .projects-grid {
+                grid-template-columns: 1fr;
+            }
+            .filter-container {
+                flex-direction: column;
+            }
+            .search-box {
+                width: 100%;
+            }
+            .stats {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+
+        /* 卡片進入動畫 */
+        .project-card {
+            animation: fadeInUp 0.6s ease both;
+        }
+
+        .project-card:nth-child(1) { animation-delay: 0.1s; }
+        .project-card:nth-child(2) { animation-delay: 0.2s; }
+        .project-card:nth-child(3) { animation-delay: 0.3s; }
+        .project-card:nth-child(4) { animation-delay: 0.4s; }
+        .project-card:nth-child(5) { animation-delay: 0.5s; }
+        .project-card:nth-child(6) { animation-delay: 0.6s; }
     </style>
 </head>
 <body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <h1>🎮 新北中正國中創客中心</h1>
+                <p class="subtitle">學生HTML遊戲與互動作品展示平台</p>
+                <p style="margin-top: 10px; opacity: 0.9;">展示學生們的創意與程式設計能力</p>
+                <div class="stats">
+                    <div class="stat-item">📚 作品總數: <span id="totalCount">10</span></div>
+                    <div class="stat-item">👨‍🎓 創作者: <span id="authorCount">9</span></div>
+                    <div class="stat-item">🏷️ 類型: <span id="typeCount">2</span></div>
+                </div>
+            </div>
+        </header>
 
-    <h1>🎮 114級創客社 的 HTML 遊戲作品集</h1>
-    <p>歡迎瀏覽我的獨立開發遊戲作品！</p>
+        <div class="filter-section">
+            <div class="filter-container">
+                <div class="filter-group">
+                    <span class="filter-label">年份：</span>
+                    <button class="filter-btn active" onclick="filterProjects('all')">全部</button>
+                    <button class="filter-btn" onclick="filterProjects('2025')">2025</button>
+                </div>
+                
+                <div class="filter-group">
+                    <span class="filter-label">類型：</span>
+                    <button class="filter-btn" onclick="filterProjects('game')">遊戲</button>
+                </div>
 
-    <ul class="game-list">
-        <li>
-            <a href="/star-adventure/">星空大冒險 (Star Adventure)</a> 
-            <div class="description">一款使用 Canvas 製作的橫向捲軸射擊遊戲。</div>
-        </li>
+                <div class="filter-group">
+                    <input type="text" class="search-box" id="searchBox" placeholder="🔍 搜尋作品名稱或作者...">
+                </div>
+            </div>
+        </div>
 
-        <li>
-            <a href="/puzzle-box/">魔法方塊 (Puzzle Box)</a>
-            <div class="description">基於純 CSS 和 JavaScript 的益智推箱子遊戲。</div>
-        </li>
+        <div id="projectsContainer" class="projects-grid">
+            <!-- 作品將在此動態載入 -->
+        </div>
+    </div>
 
-        <li>
-            <a href="/game-3-folder-name/">[新作品名稱]</a>
-            <div class="description">這是您最新作品的簡短介紹。</div>
-        </li>
-    </ul>
-    
-    <hr>
-    <footer>
-        <p>作品持續更新中。聯繫方式：[vvv9509@gmail.com]</p>
-    </footer>
+    <script>
+        // 內嵌的作品資料 - 直接定義在HTML中，避免載入外部JSON的問題
+        const allProjects = [
+            {
+                "title": "飛鳥遊戲 Flappy Bird",
+                "english": "Flappy Bird",
+                "folder": "games/70424_flappy_bird.html",
+                "description": "經典飛鳥遊戲！點擊或按空白鍵控制小鳥飛行，避開綠色管道。考驗反應力的休閒小品。",
+                "author": "70424",
+                "date": "2025-12-16",
+                "type": "game",
+                "year": "2025",
+                "thumbnail": "🐦",
+                "tags": ["點擊", "反應", "經典"]
+            },
+            {
+                "title": "小雞過馬路",
+                "english": "Crossy Chicken",
+                "folder": "games/70703_小雞過馬路.html",
+                "description": "幫助小雞安全過馬路！使用方向鍵控制小雞，避開來往的車輛，每前進一步獲得分數。",
+                "author": "70703",
+                "date": "2025-12-16",
+                "type": "game",
+                "year": "2025",
+                "thumbnail": "🐔",
+                "tags": ["躲避", "策略", "街機"]
+            },
+            {
+                "title": "恐龍跑跳遊戲",
+                "english": "Dino Run",
+                "folder": "games/70703_跑跳遊戲.html",
+                "description": "經典恐龍跑跳遊戲！按空白鍵或向上鍵跳躍，避開仙人掌障礙物，挑戰最高分數。",
+                "author": "70703",
+                "date": "2025-12-16",
+                "type": "game",
+                "year": "2025",
+                "thumbnail": "🦕",
+                "tags": ["跑酷", "無盡", "跳躍"]
+            },
+            {
+                "title": "貪食蛇遊戲",
+                "english": "Snake Game",
+                "folder": "games/71412_貪食蛇遊戲.html",
+                "description": "經典貪食蛇！使用方向鍵或WASD控制蛇的移動，吃到食物成長並加速，避免撞牆或撞到自己。",
+                "author": "71412",
+                "date": "2025-12-16",
+                "type": "game",
+                "year": "2025",
+                "thumbnail": "🐍",
+                "tags": ["經典", "策略", "成長"]
+            },
+            {
+                "title": "跑酷遊戲",
+                "english": "Parkour Game",
+                "folder": "games/80417___跑酷遊戲__.html",
+                "description": "刺激的跑酷冒險！跳躍、滑行、閃避各種障礙物，挑戰極限反應力。",
+                "author": "80417",
+                "date": "2025-12-16",
+                "type": "game",
+                "year": "2025",
+                "thumbnail": "🏃",
+                "tags": ["跑酷", "動作", "反應"]
+            },
+            {
+                "title": "Boss戰鬥競技場",
+                "english": "Boss Battle Arena",
+                "folder": "games/80813_Boss戰鬥競技場.html",
+                "description": "史詩級Boss戰鬥！運用策略和技巧，挑戰強大的Boss，成為最強的戰士。",
+                "author": "80813",
+                "date": "2025-12-16",
+                "type": "game",
+                "year": "2025",
+                "thumbnail": "⚔️",
+                "tags": ["戰鬥", "Boss", "動作"]
+            },
+            {
+                "title": "聖誕隊伍遊戲",
+                "english": "Santa's Convoy",
+                "folder": "games/80813_SANTA_SCONVOY.html",
+                "description": "聖誕節主題貪食蛇！收集禮物，壯大你的聖誕隊伍，使用方向鍵控制移動。",
+                "author": "80813",
+                "date": "2025-12-16",
+                "type": "game",
+                "year": "2025",
+                "thumbnail": "🎅",
+                "tags": ["聖誕", "收集", "8位元"]
+            },
+            {
+                "title": "恐龍奔跑",
+                "english": "Dino Runner",
+                "folder": "games/82211_恐龍跑跳.html",
+                "description": "Chrome恐龍遊戲復刻版！按空白鍵跳躍，避開仙人掌，隨著分數提升遊戲會越來越快。",
+                "author": "82211",
+                "date": "2025-12-16",
+                "type": "game",
+                "year": "2025",
+                "thumbnail": "🦖",
+                "tags": ["無盡跑酷", "經典", "挑戰"]
+            },
+            {
+                "title": "OSU 音樂節奏遊戲",
+                "english": "OSU Rhythm Game",
+                "folder": "games/OSU.html",
+                "description": "音樂節奏遊戲！跟著節奏點擊圓圈，測試你的音感和反應力。",
+                "author": "創客社",
+                "date": "2025-12-16",
+                "type": "game",
+                "year": "2025",
+                "thumbnail": "🎵",
+                "tags": ["音樂", "節奏", "反應"]
+            },
+            {
+                "title": "科技迴路貪吃蛇",
+                "english": "Tech Circuit Snake",
+                "folder": "games/科技迴路貪吃蛇.html",
+                "description": "科技風格的貪吃蛇遊戲！在電路板上收集能量點，體驗賽博龐克風格的經典遊戲。",
+                "author": "創客進階班",
+                "date": "2025-12-16",
+                "type": "game",
+                "year": "2025",
+                "thumbnail": "🔌",
+                "tags": ["科技", "貪吃蛇", "創新"]
+            }
+        ];
 
+        let currentFilter = 'all';
+
+        // 格式化日期
+        function formatDate(dateString) {
+            if (!dateString) return '未知';
+            const date = new Date(dateString);
+            return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+        }
+
+        // 渲染作品卡片
+        function renderProjects(projects) {
+            const container = document.getElementById('projectsContainer');
+            
+            if (projects.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: white; font-size: 1.2em; padding: 50px; background: rgba(255,255,255,0.1); border-radius: 20px; margin-top: 30px; backdrop-filter: blur(10px);">🔍 找不到符合條件的作品</div>';
+                return;
+            }
+
+            container.innerHTML = projects.map((project, index) => `
+                <div class="project-card">
+                    <div class="project-thumbnail">
+                        ${project.thumbnail || '🎮'}
+                        <span class="year-badge">${project.year || '2025'}</span>
+                        <span class="type-badge">${project.type === 'game' ? '遊戲' : '互動'}</span>
+                    </div>
+                    <div class="project-info">
+                        <h3 class="project-title">${project.title}</h3>
+                        ${project.english ? `<p class="project-english">${project.english}</p>` : ''}
+                        <p class="project-description">${project.description}</p>
+                        <div class="project-tags">
+                            ${project.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                        </div>
+                        <div class="project-meta">
+                            <span class="project-author">👤 ${project.author}</span>
+                            <span class="project-date">📅 ${formatDate(project.date)}</span>
+                        </div>
+                        <a href="${project.folder}" class="project-link" target="_blank">
+                            🎮 開始遊戲
+                        </a>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 篩選作品
+        function filterProjects(type) {
+            currentFilter = type;
+            
+            // 更新按鈕狀態
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            event.target.classList.add('active');
+
+            // 篩選並顯示
+            let filtered = allProjects;
+            if (type !== 'all') {
+                if (type === '2025') {
+                    filtered = allProjects.filter(p => p.year === type);
+                } else {
+                    filtered = allProjects.filter(p => p.type === type);
+                }
+            }
+            
+            // 應用搜尋篩選
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            if (searchTerm) {
+                filtered = filtered.filter(p => 
+                    p.title.toLowerCase().includes(searchTerm) ||
+                    p.author.toLowerCase().includes(searchTerm) ||
+                    p.description.toLowerCase().includes(searchTerm) ||
+                    p.tags.some(tag => tag.toLowerCase().includes(searchTerm))
+                );
+            }
+            
+            renderProjects(filtered);
+        }
+
+        // 設置搜尋功能
+        function setupSearch() {
+            const searchBox = document.getElementById('searchBox');
+            searchBox.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                let filtered = currentFilter === 'all' ? allProjects : 
+                    allProjects.filter(p => {
+                        if (currentFilter === '2025') {
+                            return p.year === currentFilter;
+                        } else {
+                            return p.type === currentFilter;
+                        }
+                    });
+                
+                if (searchTerm) {
+                    filtered = filtered.filter(p => 
+                        p.title.toLowerCase().includes(searchTerm) ||
+                        p.author.toLowerCase().includes(searchTerm) ||
+                        p.description.toLowerCase().includes(searchTerm) ||
+                        p.tags.some(tag => tag.toLowerCase().includes(searchTerm))
+                    );
+                }
+                
+                renderProjects(filtered);
+            });
+        }
+
+        // 頁面載入時執行
+        document.addEventListener('DOMContentLoaded', () => {
+            renderProjects(allProjects);
+            setupSearch();
+        });
+    </script>
 </body>
 </html>
