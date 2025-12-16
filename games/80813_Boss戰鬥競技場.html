@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="zh-TW">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boss戰鬥</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Arial Black', Arial, sans-serif;
+    }
+
+    html {
+      height: 100%;
+      width: 100%;
+    }
+
+    .game-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background: linear-gradient(to bottom, #1a0033, #330066);
+      overflow: hidden;
+    }
+
+    .game-title {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 36px;
+      color: #FFD700;
+      text-shadow: 3px 3px 6px rgba(0,0,0,0.8);
+      z-index: 100;
+    }
+
+    .health-bars {
+      position: absolute;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 800px;
+      z-index: 100;
+    }
+
+    .health-bar-container {
+      margin-bottom: 15px;
+    }
+
+    .health-label {
+      color: white;
+      font-size: 18px;
+      margin-bottom: 5px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    }
+
+    .health-bar-bg {
+      width: 100%;
+      height: 30px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 15px;
+      overflow: hidden;
+      border: 2px solid rgba(255,255,255,0.3);
+    }
+
+    .health-bar-fill {
+      height: 100%;
+      transition: width 0.3s ease;
+      border-radius: 15px;
+    }
+
+    .player-health {
+      background: linear-gradient(to right, #00ff00, #90EE90);
+    }
+
+    .boss-health {
+      background: linear-gradient(to right, #ff0000, #ff6666);
+    }
+
+    .battlefield {
+      position: absolute;
+      bottom: 100px;
+      width: 100%;
+      height: 60%;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 0 100px;
+    }
+
+    .character {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .player {
+      font-size: 80px;
+      animation: idle 2s ease-in-out infinite;
+    }
+
+    .boss {
+      font-size: 120px;
+      animation: boss-idle 3s ease-in-out infinite;
+    }
+
+    @keyframes idle {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+
+    @keyframes boss-idle {
+      0%, 100% { transform: translateY(0px) scale(1); }
+      50% { transform: translateY(-15px) scale(1.05); }
+    }
+
+    @keyframes attack-player {
+      0% { transform: translateX(0) rotate(0deg); }
+      50% { transform: translateX(100px) rotate(45deg); }
+      100% { transform: translateX(0) rotate(0deg); }
+    }
+
+    @keyframes attack-boss {
+      0% { transform: translateX(0) rotate(0deg); }
+      50% { transform: translateX(-100px) rotate(-45deg); }
+      100% { transform: translateX(0) rotate(0deg); }
+    }
+
+    @keyframes damage-flash {
+      0%, 100% { filter: brightness(1); }
+      50% { filter: brightness(2) hue-rotate(180deg); }
+    }
+
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 100;
+    }
+
+    .btn {
+      padding: 15px 40px;
+      font-size: 20px;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    .attack-btn {
+      background: linear-gradient(to bottom, #ff4444, #cc0000);
+      color: white;
+    }
+
+    .attack-btn:hover:not(:disabled) {
+      background: linear-gradient(to bottom, #ff6666, #ff0000);
+      transform: scale(1.05);
+    }
+
+    .attack-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .defend-btn {
+      background: linear-gradient(to bottom, #4444ff, #0000cc);
+      color: white;
+    }
+
+    .defend-btn:hover:not(:disabled) {
+      background: linear-gradient(to bottom, #6666ff, #0000ff);
+      transform: scale(1.05);
+    }
+
+    .defend-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .defend-btn.active {
+      background: linear-gradient(to bottom, #FFD700, #FFA500);
+      box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+    }
+
+    .shield {
+      position: absolute;
+      font-size: 60px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 10;
+    }
+
+    .shield.active {
+      opacity: 1;
+      animation: shield-glow 0.5s ease infinite;
+    }
+
+    @keyframes shield-glow {
+      0%, 100% { transform: scale(1); filter: brightness(1); }
+      50% { transform: scale(1.1); filter: brightness(1.5); }
+    }
+
+    .game-over-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.9);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 200;
+    }
+
+    .game-over-text {
+      font-size: 72px;
+      color: white;
+      margin-bottom: 30px;
+      text-shadow: 4px 4px 8px rgba(0,0,0,0.8);
+    }
+
+    .restart-btn {
+      background: linear-gradient(to bottom, #4CAF50, #45a049);
+      color: white;
+    }
+
+    .restart-btn:hover {
+      background: linear-gradient(to bottom, #5bc75f, #4CAF50);
+      transform: scale(1.05);
+    }
+
+    .items-container {
+      position: absolute;
+      top: 220px;
+      left: 20px;
+      background: rgba(0,0,0,0.7);
+      padding: 15px;
+      border-radius: 15px;
+      border: 2px solid rgba(255,215,0,0.5);
+      z-index: 100;
+    }
+
+    .items-title {
+      color: #FFD700;
+      font-size: 18px;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    }
+
+    .item-btn {
+      display: block;
+      width: 150px;
+      padding: 10px;
+      margin-bottom: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: left;
+      color: white;
+    }
+
+    .item-btn:hover:not(:disabled) {
+      transform: scale(1.05);
+      border-color: #FFD700;
+    }
+
+    .item-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .health-potion {
+      background: linear-gradient(to right, #ff1744, #ff5252);
+    }
+
+    .strength-potion {
+      background: linear-gradient(to right, #ff6f00, #ffa726);
+    }
+
+    .instant-kill-potion {
+      background: linear-gradient(to right, #9c27b0, #e91e63);
+      box-shadow: 0 0 15px rgba(156, 39, 176, 0.5);
+    }
+
+    .freeze-potion {
+      background: linear-gradient(to right, #00bcd4, #03a9f4);
+      box-shadow: 0 0 15px rgba(0, 188, 212, 0.5);
+    }
+
+    .boss.frozen {
+      filter: brightness(0.7) hue-rotate(180deg);
+      animation: frozen-shake 0.3s ease infinite !important;
+    }
+
+    @keyframes frozen-shake {
+      0%, 100% { transform: translateY(0px) scale(1); }
+      25% { transform: translateY(-2px) scale(1); }
+      75% { transform: translateY(2px) scale(1); }
+    }
+
+    .item-count {
+      float: right;
+      background: rgba(0,0,0,0.5);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+
+    @keyframes heal-effect {
+      0% { filter: brightness(1); }
+      50% { filter: brightness(2) hue-rotate(90deg); }
+      100% { filter: brightness(1); }
+    }
+
+    @keyframes power-up {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.2); filter: brightness(1.5); }
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+  <script src="https://cdn.tailwindcss.com" type="text/javascript"></script>
+ </head>
+ <body>
+  <div class="game-container">
+   <h1 class="game-title" id="gameTitle">Boss戰鬥競技場</h1>
+   <div class="health-bars">
+    <div class="health-bar-container">
+     <div class="health-label" id="playerLabel">
+      玩家 HP
+     </div>
+     <div class="health-bar-bg">
+      <div class="health-bar-fill player-health" id="playerHealthBar" style="width: 100%;"></div>
+     </div>
+    </div>
+    <div class="health-bar-container">
+     <div class="health-label" id="bossLabel">
+      Boss HP
+     </div>
+     <div class="health-bar-bg">
+      <div class="health-bar-fill boss-health" id="bossHealthBar" style="width: 100%;"></div>
+     </div>
+    </div>
+   </div>
+   <div class="items-container">
+    <div class="items-title">
+     ⚗️ 道具
+    </div><button class="item-btn health-potion" id="healthPotionBtn"> ❤️ 治療藥水 <span class="item-count" id="healthPotionCount">3</span> </button> <button class="item-btn strength-potion" id="strengthPotionBtn"> 💪 力量藥水 <span class="item-count" id="strengthPotionCount">2</span> </button> <button class="item-btn instant-kill-potion" id="instantKillPotionBtn">   ️ 秒殺藥水 <span class="item-count" id="instantKillPotionCount">1</span> </button>
+   </div>
+   <div class="battlefield">
+    <div class="character player" id="player">
+     <svg width="80" height="80" viewbox="0 0 100 120" xmlns="http://www.w3.org/2000/svg"><!-- 頭部 --> <circle cx="50" cy="25" r="15" fill="#FFD1A4" /> <!-- 眼睛 --> <circle cx="45" cy="23" r="2" fill="#000" /> <circle cx="55" cy="23" r="2" fill="#000" /> <!-- 嘴巴 --> <path d="M 45 28 Q 50 31 55 28" stroke="#000" fill="none" stroke-width="1.5" /> <!-- 身體 --> <rect x="40" y="40" width="20" height="35" fill="#4169E1" rx="3" /> <!-- 手臂 左 --> <rect x="28" y="45" width="12" height="8" fill="#FFD1A4" rx="2" /> <line x1="28" y1="49" x2="15" y2="49" stroke="#C0C0C0" stroke-width="4" /> <path d="M 12 45 L 8 49 L 12 53 Z" fill="#E8E8E8" /> <!-- 手臂 右 --> <rect x="60" y="45" width="12" height="8" fill="#FFD1A4" rx="2" /> <!-- 腿 --> <rect x="42" y="75" width="7" height="25" fill="#2F4F4F" rx="2" /> <rect x="51" y="75" width="7" height="25" fill="#2F4F4F" rx="2" /> <!-- 鞋子 --> <ellipse cx="45.5" cy="102" rx="5" ry="3" fill="#1C1C1C" /> <ellipse cx="54.5" cy="102" rx="5" ry="3" fill="#1C1C1C" />
+     </svg>
+     <div class="shield" id="shield">
+      🛡️
+     </div>
+    </div>
+    <div class="character boss" id="boss1">
+     👹
+    </div>
+    <div class="character boss" id="boss2" style="margin-left: -50px;">
+     👺
+    </div>
+   </div>
+   <div class="controls"><button class="btn attack-btn" id="attackBtn">攻擊</button> <button class="btn defend-btn" id="defendBtn">防禦</button>
+   </div>
+   <div class="game-over-screen" id="gameOverScreen">
+    <div class="game-over-text" id="gameOverText">
+     勝利！
+    </div><button class="btn restart-btn" id="restartBtn">重   開始</button>
+   </div>
+  </div>
+  <script>
+    const defaultConfig = {
+      game_title: "Boss戰鬥競技場",
+      player_name: "玩家",
+      boss_name: "Boss"
+    };
+
+    let config = { ...defaultConfig };
+    let playerHealth = 100;
+    let maxPlayerHealth = 100;
+    let boss1Health = 90000;
+    let boss2Health = 90000;
+    let maxBossHealth = 90000;
+    let totalBossHealth = 180000;
+    let maxTotalBossHealth = 180000;
+    let isAttacking = false;
+    let gameOver = false;
+    let isDefending = false;
+    let healthPotions = 3;
+    let strengthPotions = 2;
+    let instantKillPotions = 2;
+    let freezePotions = 2;
+    let strengthActive = false;
+    let bossesAreFrozen = false;
+
+    const playerEl = document.getElementById('player');
+    const boss1El = document.getElementById('boss1');
+    const boss2El = document.getElementById('boss2');
+    const playerHealthBar = document.getElementById('playerHealthBar');
+    const bossHealthBar = document.getElementById('bossHealthBar');
+    const attackBtn = document.getElementById('attackBtn');
+    const defendBtn = document.getElementById('defendBtn');
+    const shieldEl = document.getElementById('shield');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const gameOverText = document.getElementById('gameOverText');
+    const restartBtn = document.getElementById('restartBtn');
+    const healthPotionBtn = document.getElementById('healthPotionBtn');
+    const strengthPotionBtn = document.getElementById('strengthPotionBtn');
+    const instantKillPotionBtn = document.getElementById('instantKillPotionBtn');
+    const freezePotionBtn = document.getElementById('freezePotionBtn');
+    const healthPotionCount = document.getElementById('healthPotionCount');
+    const strengthPotionCount = document.getElementById('strengthPotionCount');
+    const instantKillPotionCount = document.getElementById('instantKillPotionCount');
+    const freezePotionCount = document.getElementById('freezePotionCount');
+
+    function updateUI() {
+      document.getElementById('gameTitle').textContent = config.game_title;
+      document.getElementById('playerLabel').textContent = `${config.player_name} HP`;
+      document.getElementById('bossLabel').textContent = `${config.boss_name} HP`;
+      updateItemCounts();
+    }
+
+    function updateItemCounts() {
+      healthPotionCount.textContent = healthPotions;
+      strengthPotionCount.textContent = strengthPotions;
+      instantKillPotionCount.textContent = instantKillPotions;
+      freezePotionCount.textContent = freezePotions;
+      healthPotionBtn.disabled = healthPotions <= 0 || isAttacking || gameOver;
+      strengthPotionBtn.disabled = strengthPotions <= 0 || isAttacking || gameOver || strengthActive;
+      // 第二次使用秒殺藥水需要血量低於10%
+      const needLowHealth = instantKillPotions === 1 && playerHealth > maxPlayerHealth * 0.1;
+      instantKillPotionBtn.disabled = instantKillPotions <= 0 || isAttacking || gameOver || needLowHealth;
+      freezePotionBtn.disabled = freezePotions <= 0 || isAttacking || gameOver || bossesAreFrozen;
+    }
+
+    function useHealthPotion() {
+      if (healthPotions <= 0 || isAttacking || gameOver) return;
+      
+      healthPotions--;
+      const healAmount = 50;
+      playerHealth = Math.min(maxPlayerHealth, playerHealth + healAmount);
+      playerHealthBar.style.width = (playerHealth / maxPlayerHealth * 100) + '%';
+      
+      playerEl.style.animation = 'heal-effect 0.6s ease';
+      setTimeout(() => {
+        playerEl.style.animation = 'idle 2s ease-in-out infinite';
+      }, 600);
+      
+      updateItemCounts();
+    }
+
+    function useStrengthPotion() {
+      if (strengthPotions <= 0 || isAttacking || gameOver || strengthActive) return;
+      
+      strengthPotions--;
+      strengthActive = true;
+      
+      playerEl.style.animation = 'power-up 0.6s ease';
+      setTimeout(() => {
+        playerEl.style.animation = 'idle 2s ease-in-out infinite';
+      }, 600);
+      
+      updateItemCounts();
+    }
+
+    function useInstantKillPotion() {
+      if (instantKillPotions <= 0 || isAttacking || gameOver) return;
+      
+      // 如果是第二次使用（剩餘數量為1），檢查血量是否低於10%
+      if (instantKillPotions === 1 && playerHealth > maxPlayerHealth * 0.1) {
+        return;
+      }
+      
+      instantKillPotions--;
+      
+      // 紫色閃光效果
+      playerEl.style.animation = 'power-up 0.8s ease';
+      
+      // 秒殺第一個還活著的Boss
+      if (boss1Health > 0) {
+        boss1Health = 0;
+        boss1El.style.animation = 'damage-flash 0.5s ease';
+        setTimeout(() => {
+          boss1El.style.opacity = '0.3';
+          boss1El.style.animation = 'boss-idle 3s ease-in-out infinite';
+        }, 500);
+      } else if (boss2Health > 0) {
+        boss2Health = 0;
+        boss2El.style.animation = 'damage-flash 0.5s ease';
+        setTimeout(() => {
+          boss2El.style.opacity = '0.3';
+          boss2El.style.animation = 'boss-idle 3s ease-in-out infinite';
+        }, 500);
+      }
+      
+      totalBossHealth = boss1Health + boss2Health;
+      bossHealthBar.style.width = (totalBossHealth / maxTotalBossHealth * 100) + '%';
+      
+      setTimeout(() => {
+        playerEl.style.animation = 'idle 2s ease-in-out infinite';
+        
+        // 檢查是否獲勝
+        if (totalBossHealth <= 0) {
+          endGame(true);
+        }
+      }, 800);
+      
+      updateItemCounts();
+    }
+
+    function useFreezePotion() {
+      if (freezePotions <= 0 || isAttacking || gameOver || bossesAreFrozen) return;
+      
+      freezePotions--;
+      bossesAreFrozen = true;
+      
+      // 冰凍效果
+      playerEl.style.animation = 'power-up 0.6s ease';
+      boss1El.classList.add('frozen');
+      boss2El.classList.add('frozen');
+      
+      setTimeout(() => {
+        playerEl.style.animation = 'idle 2s ease-in-out infinite';
+      }, 600);
+      
+      // 3秒後解除凍結
+      setTimeout(() => {
+        bossesAreFrozen = false;
+        boss1El.classList.remove('frozen');
+        boss2El.classList.remove('frozen');
+        updateItemCounts();
+      }, 3000);
+      
+      updateItemCounts();
+    }
+
+    function playerAttack() {
+      if (isAttacking || gameOver) return;
+      
+      isAttacking = true;
+      attackBtn.disabled = true;
+
+      playerEl.style.animation = 'none';
+      setTimeout(() => {
+        playerEl.style.animation = 'attack-player 0.6s ease';
+      }, 10);
+
+      setTimeout(() => {
+        let damage = Math.floor(Math.random() * 15) + 10;
+        if (strengthActive) {
+          damage = Math.floor(damage * 1000);
+          strengthActive = false;
+          updateItemCounts();
+        }
+        
+        // 優先攻擊Boss1，如果Boss1死了     攻擊Boss2
+        if (boss1Health > 0) {
+          boss1Health = Math.max(0, boss1Health - damage);
+          boss1El.style.animation = 'damage-flash 0.3s ease';
+        } else if (boss2Health > 0) {
+          boss2Health = Math.max(0, boss2Health - damage);
+          boss2El.style.animation = 'damage-flash 0.3s ease';
+        }
+        
+        totalBossHealth = boss1Health + boss2Health;
+        bossHealthBar.style.width = (totalBossHealth / maxTotalBossHealth * 100) + '%';
+        
+        // 如果Boss1死了，讓它消   
+        if (boss1Health <= 0) {
+          boss1El.style.opacity = '0.3';
+        }
+        
+        setTimeout(() => {
+          boss1El.style.animation = 'boss-idle 3s ease-in-out infinite';
+          boss2El.style.animation = 'boss-idle 3s ease-in-out infinite';
+          playerEl.style.animation = 'idle 2s ease-in-out infinite';
+          
+          if (totalBossHealth <= 0) {
+            endGame(true);
+          } else {
+            isAttacking = false;
+            attackBtn.disabled = false;
+            setTimeout(() => {
+              bossAttack();
+            }, 500);
+          }
+        }, 300);
+      }, 300);
+    }
+
+    function bossAttack() {
+      if (gameOver || bossesAreFrozen) return;
+
+      let wasDefending = isDefending;
+
+      // 兩個Boss都會攻擊（如果還活著）
+      if (boss1Health > 0) {
+        boss1El.style.animation = 'none';
+        setTimeout(() => {
+          boss1El.style.animation = 'attack-boss 0.8s ease';
+        }, 10);
+      }
+      
+      if (boss2Health > 0) {
+        boss2El.style.animation = 'none';
+        setTimeout(() => {
+          boss2El.style.animation = 'attack-boss 0.8s ease';
+        }, 10);
+      }
+
+      setTimeout(() => {
+        let totalDamage = 0;
+        
+        // 每個活著的Boss造成傷害
+        if (boss1Health > 0) {
+          totalDamage += Math.floor(Math.random() * 16) + 12;
+        }
+        if (boss2Health > 0) {
+          totalDamage += Math.floor(Math.random() * 16) + 12;
+        }
+        
+        if (wasDefending) {
+          totalDamage = Math.floor(totalDamage * 0.3);
+          shieldEl.classList.remove('active');
+          isDefending = false;
+        }
+        
+        playerHealth = Math.max(0, playerHealth - totalDamage);
+        playerHealthBar.style.width = (playerHealth / maxPlayerHealth * 100) + '%';
+        
+        if (!wasDefending) {
+          playerEl.style.animation = 'damage-flash 0.3s ease';
+        }
+        
+        setTimeout(() => {
+          playerEl.style.animation = 'idle 2s ease-in-out infinite';
+          boss1El.style.animation = 'boss-idle 3s ease-in-out infinite';
+          boss2El.style.animation = 'boss-idle 3s ease-in-out infinite';
+          
+          if (playerHealth <= 0) {
+            endGame(false);
+          }
+        }, 300);
+      }, 400);
+    }
+
+    function playerDefend() {
+      if (gameOver) return;
+      
+      if (!isDefending) {
+        isDefending = true;
+        shieldEl.classList.add('active');
+        defendBtn.classList.add('active');
+        defendBtn.textContent = '防禦中';
+      } else {
+        isDefending = false;
+        shieldEl.classList.remove('active');
+        defendBtn.classList.remove('active');
+        defendBtn.textContent = '防禦';
+      }
+    }
+
+    function endGame(playerWon) {
+      gameOver = true;
+      attackBtn.disabled = true;
+      defendBtn.disabled = true;
+      gameOverText.textContent = playerWon ? '   利！' : '   敗！';
+      gameOverText.style.color = playerWon ? '#FFD700' : '#ff4444';
+      gameOverScreen.style.display = 'flex';
+    }
+
+    function restartGame() {
+      playerHealth = maxPlayerHealth;
+      boss1Health = maxBossHealth;
+      boss2Health = maxBossHealth;
+      totalBossHealth = maxTotalBossHealth;
+      gameOver = false;
+      isAttacking = false;
+      isDefending = false;
+      healthPotions = 3;
+      strengthPotions = 2;
+      instantKillPotions = 2;
+      freezePotions = 2;
+      strengthActive = false;
+      bossesAreFrozen = false;
+      boss1El.classList.remove('frozen');
+      boss2El.classList.remove('frozen');
+      
+      playerHealthBar.style.width = '100%';
+      bossHealthBar.style.width = '100%';
+      attackBtn.disabled = false;
+      defendBtn.disabled = false;
+      defendBtn.classList.remove('active');
+      defendBtn.textContent = '防禦';
+      shieldEl.classList.remove('active');
+      gameOverScreen.style.display = 'none';
+      boss1El.style.opacity = '1';
+      boss2El.style.opacity = '1';
+      
+      updateItemCounts();
+      
+      playerEl.style.animation = 'idle 2s ease-in-out infinite';
+      boss1El.style.animation = 'boss-idle 3s ease-in-out infinite';
+      boss2El.style.animation = 'boss-idle 3s ease-in-out infinite';
+    }
+
+    attackBtn.addEventListener('click', playerAttack);
+    defendBtn.addEventListener('click', playerDefend);
+    restartBtn.addEventListener('click', restartGame);
+    healthPotionBtn.addEventListener('click', useHealthPotion);
+    strengthPotionBtn.addEventListener('click', useStrengthPotion);
+    instantKillPotionBtn.addEventListener('click', useInstantKillPotion);
+    freezePotionBtn.addEventListener('click', useFreezePotion);
+
+    async function onConfigChange(newConfig) {
+      config = { ...newConfig };
+      updateUI();
+    }
+
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities: (config) => ({
+          recolorables: [],
+          borderables: [],
+          fontEditable: undefined,
+          fontSizeable: undefined
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ["game_title", config.game_title || defaultConfig.game_title],
+          ["player_name", config.player_name || defaultConfig.player_name],
+          ["boss_name", config.boss_name || defaultConfig.boss_name]
+        ])
+      });
+    }
+
+    updateUI();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a56406fe29f4105',t:'MTc2NDI5NTAxNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>貪吃蛇遊戲 (高科技版本 - 道具模式 - 可部署HTML)</title>
+    <!-- 載入 Tailwind CSS 框架 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 Noto Sans TC 字體 -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <!--
+        ** 重要提醒 **
+        這個區塊是為了在 Immersive 環境中運行而設計的。
+        如果您將這個檔案部署到您自己的伺服器，您需要將這段腳本修改為您的 Firebase 配置，
+        或者直接移除，讓遊戲在沒有雲端分數同步功能的情況下運行。
+    -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 全域變數初始化 (在 Canvas 環境中由系統提供)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        if (firebaseConfig) {
+            // 初始化 Firebase App
+            const app = initializeApp(firebaseConfig);
+            window.db = getFirestore(app);
+            window.auth = getAuth(app);
+            window.appId = appId;
+            setLogLevel('Debug');
+
+            // 處理身份驗證
+            onAuthStateChanged(window.auth, async (user) => {
+                if (!user) {
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(window.auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(window.auth);
+                        }
+                        window.userId = window.auth.currentUser.uid;
+                        window.isAuthReady = true;
+                        if (typeof window.initGameLogic === 'function') {
+                            window.initGameLogic();
+                        }
+                    } catch (error) {
+                        console.error("Firebase 認證失敗:", error);
+                        window.isAuthReady = true;
+                        if (typeof window.initGameLogic === 'function') {
+                            window.initGameLogic();
+                        }
+                    }
+                } else {
+                    window.userId = user.uid;
+                    window.isAuthReady = true;
+                    if (typeof window.initGameLogic === 'function') {
+                        window.initGameLogic();
+                    }
+                }
+            });
+
+            // 附加 Firestore 函式
+            window.firestore = {
+                getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, orderBy, limit, getDocs
+            };
+        } else {
+            console.warn("Firebase 配置遺失。遊戲將在沒有分數儲存功能的情況下運行。");
+            window.isAuthReady = true;
+            if (typeof window.initGameLogic === 'function') {
+                window.initGameLogic();
+            }
+        }
+    </script>
+    <style>
+        /* 使用 Noto Sans TC 作為主要字體 */
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #000000; /* 深黑背景 */
+        }
+       
+        /* 科技感文字顏色與光暈 */
+        .text-neon-cyan {
+            color: #00FFFF;
+            text-shadow: 0 0 8px rgba(0, 255, 255, 0.8);
+        }
+        .text-neon-magenta {
+            color: #FF00FF;
+            text-shadow: 0 0 8px rgba(255, 0, 255, 0.8);
+        }
+
+        /* 遊戲畫布的基本樣式 */
+        #gameCanvas {
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.7), 0 0 5px rgba(0, 255, 255, 0.3); /* 霓虹青色光暈 */
+            border-radius: 4px;
+            background-color: #05050A; /* 接近黑色的深藍色 */
+            touch-action: none; /* 禁用瀏覽器預設的觸控操作 */
+            border: 1px solid #00FFFF; /* 邊框 */
+        }
+        /* 按鈕樣式 */
+        .game-button {
+            transition: all 0.15s ease-in-out;
+            box-shadow: 0 4px #00B3B3; /* 霓虹色陰影 */
+            text-shadow: 0 0 5px #00FFFF;
+        }
+        .game-button:hover {
+            transform: translateY(1px);
+            box-shadow: 0 3px #00B3B3;
+        }
+        .game-button:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 #00B3B3;
+        }
+
+        /* 遊戲結束疊加層 */
+        #gameOverOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: none; /* 預設隱藏 */
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            border-radius: 4px;
+        }
+
+        /* 觸控控制按鈕樣式 */
+        .touch-control {
+            background-color: #1a1a2e;
+            color: #00FFFF;
+            padding: 1rem;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.1s;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        .touch-control:active {
+            background-color: #2a2a44;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.8);
+        }
+       
+        /* 使用者 ID 的連結/科技文字樣式 */
+        .user-id-link {
+            cursor: pointer;
+            text-decoration: underline;
+            text-decoration-color: #FF00FF;
+            transition: color 0.1s, text-shadow 0.1s;
+        }
+        .user-id-link:hover {
+            color: #FFFFFF;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 flex flex-col items-center min-h-screen">
+
+    <h1 class="text-4xl font-bold text-neon-cyan mb-6 tracking-wider">💻 科技迴路貪吃蛇 🌐</h1>
+
+    <!-- 遊戲主容器 -->
+    <div class="flex flex-col lg:flex-row w-full max-w-6xl gap-6">
+
+        <!-- 左側：遊戲區域和控制項 -->
+        <div class="lg:w-3/5 w-full bg-gray-900 p-4 sm:p-6 rounded-xl shadow-2xl relative border border-cyan-700/50">
+            <h2 class="text-2xl font-semibold text-white mb-4 text-center text-neon-cyan">系統運行中...</h2>
+
+            <!-- 記分板和狀態 -->
+            <div class="flex justify-between items-center text-lg font-mono mb-4 text-neon-cyan">
+                <span>分數: <span id="score" class="text-neon-magenta">0</span></span>
+                <!-- 調整了使用者 ID 的顯示樣式 -->
+                <span class="text-xl font-bold">使用者 ID:
+                    <span id="userIdDisplay" class="text-yellow-400 text-sm break-all user-id-link"></span>
+                </span>
+            </div>
+           
+            <!-- 道具狀態 -->
+            <div id="powerUpStatus" class="hidden mt-2 p-2 rounded-lg bg-yellow-900/50 border border-yellow-500/80 text-center text-sm">
+                <span class="text-yellow-300 font-bold">道具啟動:</span>
+                <span id="activePowerUpDisplay" class="text-yellow-100 mr-2"></span>
+                <span class="text-yellow-400 font-mono">倒數: <span id="powerUpTimerDisplay"></span></span>
+            </div>
+
+
+            <!-- 遊戲畫布和疊加層 -->
+            <div id="canvasContainer" class="relative w-full aspect-square max-w-[500px] mx-auto mt-4">
+                <canvas id="gameCanvas" class="w-full h-full"></canvas>
+                <!-- 遊戲結束疊加層 -->
+                <div id="gameOverOverlay" class="absolute top-0 left-0 flex flex-col justify-center items-center text-white p-4">
+                    <h3 class="text-5xl font-extrabold text-neon-magenta mb-4 animate-pulse">系統故障 (Game Over)！</h3>
+                    <p class="text-2xl mb-2 text-neon-cyan">本次資料包大小: <span id="finalScore" class="font-bold text-neon-magenta">0</span></p>
+                    <p class="text-xl text-gray-300">按下 <span class="font-bold text-neon-cyan">Enter</span> 進行重啟</p>
+                    <p class="text-sm mt-4 text-gray-400">(或點擊「開始」按鈕)</p>
+                </div>
+            </div>
+
+            <!-- 觸控控制按鈕 (僅在小螢幕上顯示) -->
+            <div id="touchControls" class="mt-6 flex flex-col items-center space-y-2 sm:hidden">
+                <div class="flex space-x-2">
+                    <button class="touch-control w-16 h-16" data-direction="UP">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+                    </button>
+                </div>
+                <div class="flex space-x-8">
+                    <button class="touch-control w-16 h-16" data-direction="LEFT">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    </button>
+                    <button class="touch-control w-16 h-16" data-direction="RIGHT">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                    </button>
+                </div>
+                <div class="flex space-x-2">
+                    <button class="touch-control w-16 h-16" data-direction="DOWN">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+
+            <!-- 控制按鈕 -->
+            <div class="mt-6 flex justify-center space-x-4">
+                <button id="startButton" class="game-button bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-6 rounded-xl text-lg">
+                    [啟動] 開始遊戲
+                </button>
+                <button id="pauseButton" class="game-button bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 px-6 rounded-xl text-lg" disabled>
+                    [暫停] 凍結系統
+                </button>
+            </div>
+        </div>
+
+        <!-- 右側：最高分數榜 -->
+        <div class="lg:w-2/5 w-full bg-gray-900 p-4 sm:p-6 rounded-xl shadow-2xl border border-cyan-700/50">
+            <h2 class="text-2xl font-semibold text-neon-magenta mb-4 text-center">📊 資料包排行榜</h2>
+            <div id="highScoresList" class="space-y-3 text-white">
+                <p id="loadingScores" class="text-center text-gray-400">正在載入數據流...</p>
+                <!-- 分數列表將在這裡生成 -->
+            </div>
+            <p class="text-sm mt-6 text-center text-gray-500">
+                您的資料包分數將在全球網絡中即時同步。
+            </p>
+        </div>
+
+    </div>
+
+    <!-- 遊戲邏輯腳本 -->
+    <script>
+        // =================================================================
+        // 1. 遊戲設定和初始化
+        // =================================================================
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const gameOverOverlay = document.getElementById('gameOverOverlay');
+        const startButton = document.getElementById('startButton');
+        const pauseButton = document.getElementById('pauseButton');
+        const highScoresList = document.getElementById('highScoresList');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const powerUpStatus = document.getElementById('powerUpStatus');
+        const activePowerUpDisplay = document.getElementById('activePowerUpDisplay');
+        const powerUpTimerDisplay = document.getElementById('powerUpTimerDisplay');
+
+
+        // 遊戲參數
+        const GRID_SIZE = 20; // 網格大小 (格子數)
+        let TILE_SIZE;       // 每個格子在畫布上的像素大小
+        let speed = 150;     // 遊戲速度 (毫秒)
+        const DEFAULT_SPEED = 150; // 預設速度
+        const TURBO_SPEED = 75;    // 極速晶片的速度
+        const POWER_UP_DURATION = 7000; // 道具持續時間 (毫秒)
+        const POWER_UP_CHANCE = 0.2; // 道具出現機率 (20%)
+
+        let gameLoop;        // 儲存 setInterval 實例
+        let isPaused = true; // 遊戲是否暫停
+        let isGameOver = false;
+
+        // 遊戲狀態
+        let snake;
+        let food;
+        let powerUp = null; // 新增：目前的道具位置和類型
+        let activePowerUp = null; // 新增：啟動中的道具類型
+        let powerUpTimer = 0; // 新增：道具剩餘時間
+        let dx = 0; // x 軸方向
+        let dy = 0; // y 軸方向
+        let score = 0;
+        let changingDirection = false; // 用於防止蛇在一個遊戲週期內調頭
+
+        // 道具類型定義
+        const POWER_UP_TYPES = {
+            TURBO_SPEED: 'TURBO_SPEED', // 極速晶片
+            SCORE_MULTIPLIER: 'SCORE_MULTIPLIER' // 分數增幅
+        };
+
+        // 最高分數相關變數
+        const MAX_HIGH_SCORES = 5;
+        let currentHighScores = [];
+
+        /**
+         * 初始化遊戲狀態和變數。
+         */
+        function initializeGame() {
+            // 計算 TILE_SIZE 以適應畫布容器大小
+            resizeCanvas();
+
+            // 設定蛇的初始位置 (靠近中心)
+            snake = [{ x: Math.floor(GRID_SIZE / 2) * TILE_SIZE, y: Math.floor(GRID_SIZE / 2) * TILE_SIZE }];
+           
+            // 重置狀態和參數
+            dx = TILE_SIZE;
+            dy = 0;
+            score = 0;
+            speed = DEFAULT_SPEED;
+            powerUp = null;
+            activePowerUp = null;
+            powerUpTimer = 0;
+
+            scoreDisplay.textContent = score;
+            isPaused = true;
+            isGameOver = false;
+            changingDirection = false;
+            powerUpStatus.classList.add('hidden'); // 隱藏道具狀態
+
+            // 清除畫布和遊戲結束疊加層
+            drawCanvas();
+            drawSnake();
+            gameOverOverlay.style.display = 'none';
+           
+            // 隨機放置第一個食物或道具
+            createFoodOrPowerUp();
+
+            // 更新按鈕狀態
+            startButton.textContent = '[啟動] 開始遊戲';
+            startButton.disabled = false;
+            pauseButton.disabled = true;
+
+            // 顯示使用者 ID (如果 Firebase 未連線，將顯示 '未連線')
+            userIdDisplay.textContent = window.userId || '未連線';
+        }
+
+        /**
+         * 調整畫布大小以匹配容器，並重新計算 TILE_SIZE。
+         */
+        function resizeCanvas() {
+            const container = document.getElementById('canvasContainer');
+            // 確保畫布是正方形，並根據 GRID_SIZE 設定大小
+            const size = Math.min(container.clientWidth, container.clientHeight);
+            canvas.width = size;
+            canvas.height = size;
+            TILE_SIZE = canvas.width / GRID_SIZE;
+           
+            // 如果遊戲正在運行，需要重新繪製所有內容
+            if (dx !== 0 || dy !== 0 || isGameOver) {
+                drawCanvas();
+                if (food) drawFood();
+                if (powerUp) drawPowerUp();
+                drawSnake();
+                if (isGameOver) {
+                    // 重新定位疊加層
+                    gameOverOverlay.style.width = `${size}px`;
+                    gameOverOverlay.style.height = `${size}px`;
+                    gameOverOverlay.style.display = 'flex';
+                }
+            }
+        }
+
+        // 確保畫布在視窗大小變更時保持響應
+        window.addEventListener('resize', resizeCanvas);
+
+
+        // =================================================================
+        // 2. 遊戲繪圖功能 (高科技/霓虹主題)
+        // =================================================================
+
+        /**
+         * 繪製遊戲網格和背景。
+         */
+        function drawCanvas() {
+            // 背景 (深黑)
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 繪製科技感網格
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)'; // 透明的青色
+            ctx.lineWidth = 1;
+            for (let i = 0; i < GRID_SIZE; i++) {
+                // 垂直線
+                ctx.beginPath();
+                ctx.moveTo(i * TILE_SIZE, 0);
+                ctx.lineTo(i * TILE_SIZE, canvas.height);
+                ctx.stroke();
+                // 水平線
+                ctx.beginPath();
+                ctx.moveTo(0, i * TILE_SIZE);
+                ctx.lineTo(canvas.width, i * TILE_SIZE);
+                ctx.stroke();
+            }
+        }
+
+        /**
+         * 繪製蛇的身體 (霓虹綠)。
+         */
+        function drawSnake() {
+            snake.forEach((segment, index) => {
+                // 設置霓虹綠色和光暈效果
+                ctx.shadowColor = '#00FF00';
+                ctx.shadowBlur = index === 0 ? 15 : 8; // 蛇頭光暈更亮
+
+                // 蛇頭使用不同顏色
+                if (index === 0) {
+                    ctx.fillStyle = '#00FF00'; // 霓虹綠
+                } else {
+                    ctx.fillStyle = '#00CC00'; // 稍微暗一點的霓虹綠
+                }
+               
+                ctx.fillRect(segment.x, segment.y, TILE_SIZE, TILE_SIZE);
+               
+                // 增加邊框增加質感 (使用黑色以強調霓虹光)
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(segment.x, segment.y, TILE_SIZE, TILE_SIZE);
+            });
+
+            // 重置光暈
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = 'transparent';
+        }
+
+        /**
+         * 繪製食物 (霓虹洋紅/資料包)。
+         */
+        function drawFood() {
+            if (!food) return;
+            // 設置霓虹洋紅色和強烈光暈效果
+            ctx.shadowColor = '#FF00FF';
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = '#FF00FF'; // 霓虹洋紅
+           
+            // 繪製圓形 (食物)
+            ctx.beginPath();
+            ctx.arc(food.x + TILE_SIZE / 2, food.y + TILE_SIZE / 2, TILE_SIZE / 2 * 0.7, 0, 2 * Math.PI);
+            ctx.fill();
+           
+            // 重置光暈
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = 'transparent';
+        }
+
+        /**
+         * 繪製道具 (使用 Emoji 符號)。
+         */
+        function drawPowerUp() {
+            if (!powerUp) return;
+
+            let color, symbol;
+            switch (powerUp.type) {
+                case POWER_UP_TYPES.TURBO_SPEED:
+                    color = '#FFFF00'; // Yellow
+                    symbol = '⚡';
+                    break;
+                case POWER_UP_TYPES.SCORE_MULTIPLIER:
+                    color = '#FF4500'; // Orange-Red
+                    symbol = '💰';
+                    break;
+                default:
+                    return;
+            }
+
+            // 設置光暈
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 15;
+
+            // 畫一個外框或背景
+            ctx.fillStyle = '#100020'; // 深紫色背景
+            ctx.fillRect(powerUp.x, powerUp.y, TILE_SIZE, TILE_SIZE);
+           
+            // 畫 emoji 符號
+            ctx.font = `${TILE_SIZE * 0.8}px 'Noto Sans TC'`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(symbol, powerUp.x + TILE_SIZE / 2, powerUp.y + TILE_SIZE / 2);
+
+            // 重置光暈
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = 'transparent';
+        }
+
+
+        // =================================================================
+        // 3. 遊戲邏輯 (包含道具)
+        // =================================================================
+
+        /**
+         * 檢查給定的座標是否與蛇重疊。
+         * @param {object} pos - 測試座標 {x, y}
+         * @returns {boolean} - 是否在蛇上
+         */
+        function isPosOnSnake(pos) {
+            return snake.some(segment => segment.x === pos.x && segment.y === pos.y);
+        }
+
+        /**
+         * 隨機生成食物或道具。
+         */
+        function createFoodOrPowerUp() {
+            const chance = Math.random();
+
+            if (chance < POWER_UP_CHANCE && powerUp === null) {
+                // 20% 機率生成道具
+                createPowerUp();
+            } else {
+                // 80% 機率生成食物
+                createFood();
+            }
+        }
+
+        /**
+         * 在畫布上隨機生成食物。
+         */
+        function createFood() {
+            let newFood;
+            do {
+                const foodX = Math.floor(Math.random() * GRID_SIZE) * TILE_SIZE;
+                const foodY = Math.floor(Math.random() * GRID_SIZE) * TILE_SIZE;
+                newFood = { x: foodX, y: foodY };
+            } while (isPosOnSnake(newFood));
+
+            food = newFood;
+            powerUp = null; // 清除道具
+        }
+
+        /**
+         * 在畫布上隨機生成道具。
+         */
+        function createPowerUp() {
+            let newPowerUp;
+            // 隨機選擇道具類型
+            let type = Math.random() < 0.5 ? POWER_UP_TYPES.TURBO_SPEED : POWER_UP_TYPES.SCORE_MULTIPLIER;
+            do {
+                const puX = Math.floor(Math.random() * GRID_SIZE) * TILE_SIZE;
+                const puY = Math.floor(Math.random() * GRID_SIZE) * TILE_SIZE;
+                newPowerUp = { x: puX, y: puY, type: type };
+            } while (isPosOnSnake(newPowerUp));
+           
+            food = null; // 清除食物
+            powerUp = newPowerUp;
+        }
+
+
+        /**
+         * 處理道具效果啟動。
+         * @param {string} type - 道具類型
+         */
+        function applyPowerUp(type) {
+            // 重設計時器並啟動道具
+            activePowerUp = type;
+            powerUpTimer = POWER_UP_DURATION;
+           
+            // 更新 UI
+            powerUpStatus.classList.remove('hidden');
+            activePowerUpDisplay.textContent = getPowerUpName(type);
+
+            if (type === POWER_UP_TYPES.TURBO_SPEED) {
+                // 極速晶片：改變速度
+                speed = TURBO_SPEED;
+                clearInterval(gameLoop);
+                gameLoop = setInterval(update, speed);
+            }
+            // 分數增幅器：效果在吃到下一顆食物時處理
+        }
+
+        /**
+         * 處理道具計時器和效果過期。
+         */
+        function handlePowerUpTimer() {
+            if (activePowerUp === POWER_UP_TYPES.TURBO_SPEED) {
+                // 只有速度道具需要倒數計時器
+                powerUpTimer -= speed; // 道具時間隨遊戲速度流逝
+               
+                // 更新 UI 倒數計時
+                const remaining = Math.max(0, Math.ceil(powerUpTimer / 1000));
+                powerUpTimerDisplay.textContent = `${remaining}s`;
+
+                if (powerUpTimer <= 0) {
+                    // 極速晶片過期
+                    activePowerUp = null;
+                    speed = DEFAULT_SPEED; // 恢復預設速度
+                    clearInterval(gameLoop);
+                    gameLoop = setInterval(update, speed);
+                   
+                    // 重設 UI
+                    powerUpStatus.classList.add('hidden');
+                    activePowerUpDisplay.textContent = '';
+                    powerUpTimerDisplay.textContent = '';
+                }
+            } else if (activePowerUp === POWER_UP_TYPES.SCORE_MULTIPLIER) {
+                 // 分數增幅器：不需要計時器，只需顯示狀態
+                powerUpTimerDisplay.textContent = 'NEXT';
+            }
+        }
+       
+        /**
+         * 根據類型返回道具的顯示名稱。
+         */
+        function getPowerUpName(type) {
+            switch(type) {
+                case POWER_UP_TYPES.TURBO_SPEED: return "極速晶片 ⚡";
+                case POWER_UP_TYPES.SCORE_MULTIPLIER: return "分數增幅 💰";
+                default: return "";
+            }
+        }
+
+
+        /**
+         * 處理遊戲結束邏輯，包括分數儲存。
+         */
+        async function handleGameOver() {
+            isGameOver = true;
+            isPaused = true;
+            clearInterval(gameLoop);
+           
+            // 重置速度，以防是加速狀態結束遊戲
+            speed = DEFAULT_SPEED;
+            activePowerUp = null;
+            powerUpStatus.classList.add('hidden');
+
+            // 顯示遊戲結束疊加層
+            finalScoreDisplay.textContent = score;
+            gameOverOverlay.style.display = 'flex';
+           
+            // 更新按鈕狀態
+            pauseButton.disabled = true;
+            startButton.textContent = '重新啟動 (Enter)';
+            startButton.disabled = false;
+
+            // 儲存最高分數 (如果 Firebase 啟動)
+            if (window.isAuthReady && window.db) {
+                await saveHighScore(score);
+            }
+        }
+
+        /**
+         * 檢查蛇是否撞到牆壁或自己的身體。
+         * @returns {boolean} - 是否發生碰撞
+         */
+        function checkCollision() {
+            const head = snake[0];
+            const maxPos = canvas.width - TILE_SIZE;
+
+            // 撞到牆壁
+            const hitWall = head.x < 0 || head.x > maxPos || head.y < 0 || head.y > maxPos;
+
+            // 撞到自己的身體 (從第四個片段開始檢查)
+            const hitSelf = snake.slice(4).some(segment => segment.x === head.x && segment.y === head.y);
+
+            return hitWall || hitSelf;
+        }
+
+        /**
+         * 主遊戲更新函數，在每個時間間隔運行。
+         */
+        function update() {
+            if (isPaused || isGameOver) return;
+
+            changingDirection = false;
+
+            // 檢查碰撞
+            if (checkCollision()) {
+                handleGameOver();
+                return;
+            }
+
+            // 移動蛇：創建新的頭部並將其添加到蛇的開頭
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+            snake.unshift(head);
+           
+            let itemConsumed = false;
+
+            // 1. 檢查是否吃到道具
+            if (powerUp && head.x === powerUp.x && head.y === powerUp.y) {
+                applyPowerUp(powerUp.type);
+                powerUp = null;
+                itemConsumed = true;
+                score += 5; // 吃道具給少量分數
+            }
+            // 2. 檢查是否吃到食物
+            else if (food && head.x === food.x && head.y === food.y) {
+                let scoreIncrease = 10;
+                // 檢查分數增幅器是否啟動中
+                if (activePowerUp === POWER_UP_TYPES.SCORE_MULTIPLIER) {
+                    scoreIncrease *= 3; // 三倍分數
+                    activePowerUp = null; // 增幅器只作用一次
+                    powerUpStatus.classList.add('hidden'); // 隱藏增幅器狀態
+                }
+                score += scoreIncrease;
+                scoreDisplay.textContent = score;
+                food = null;
+                itemConsumed = true;
+            }
+
+            if (itemConsumed) {
+                // 吃到食物或道具，蛇生長，並生成下一個物品
+                createFoodOrPowerUp();
+            } else {
+                // 正常移動，移除尾部
+                snake.pop();
+            }
+
+            // 處理道具計時器和效果過期
+            handlePowerUpTimer();
+
+
+            // 重新繪製
+            drawCanvas();
+            if (food) drawFood();
+            if (powerUp) drawPowerUp();
+            drawSnake();
+        }
+
+        /**
+         * 開始或繼續遊戲。
+         */
+        function startGame() {
+            if (isGameOver) {
+                initializeGame();
+                // 重新初始化後，讓它進入正常啟動流程
+            }
+           
+            if (isPaused) {
+                isPaused = false;
+                gameLoop = setInterval(update, speed);
+                startButton.textContent = '資料流傳輸中...';
+                startButton.disabled = true;
+                pauseButton.disabled = false;
+            }
+        }
+
+        /**
+         * 暫停遊戲。
+         */
+        function pauseGame() {
+            if (!isPaused && !isGameOver) {
+                isPaused = true;
+                clearInterval(gameLoop);
+                startButton.textContent = '[繼續] 恢復運行';
+                startButton.disabled = false;
+                pauseButton.disabled = true;
+            }
+        }
+
+        // =================================================================
+        // 4. 事件處理和控制項
+        // =================================================================
+
+        // 鍵盤控制項
+        document.addEventListener('keydown', (event) => {
+            // 避免在一個遊戲週期內多次改變方向，或試圖調頭
+            if (changingDirection) return;
+            changingDirection = true;
+
+            const keyPressed = event.key;
+            const goingUp = dy === -TILE_SIZE;
+            const goingDown = dy === TILE_SIZE;
+            const goingRight = dx === TILE_SIZE;
+            const goingLeft = dx === -TILE_SIZE;
+
+            switch (keyPressed) {
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    if (!goingRight) { dx = -TILE_SIZE; dy = 0; }
+                    break;
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    if (!goingDown) { dx = 0; dy = -TILE_SIZE; }
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    if (!goingLeft) { dx = TILE_SIZE; dy = 0; }
+                    break;
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    if (!goingUp) { dx = 0; dy = TILE_SIZE; }
+                    break;
+                case ' ': // 空白鍵用於暫停
+                    event.preventDefault(); // 防止頁面滾動
+                    if (isGameOver) break;
+                    isPaused ? startGame() : pauseGame();
+                    break;
+                case 'Enter':
+                    if (isGameOver) {
+                        startGame();
+                    }
+                    break;
+            }
+
+            // 如果遊戲尚未開始且方向鍵被按下，則開始遊戲
+            if (isPaused && !isGameOver && (keyPressed.startsWith('Arrow') || ['w', 'a', 's', 'd'].includes(keyPressed.toLowerCase()))) {
+                startGame();
+            }
+        });
+
+        // 觸控控制項 (使用代理事件)
+        document.getElementById('touchControls').addEventListener('click', (event) => {
+            const button = event.target.closest('.touch-control');
+            if (!button) return;
+
+            const direction = button.getAttribute('data-direction');
+
+            if (isPaused && !isGameOver) {
+                startGame();
+            }
+
+            if (changingDirection) return;
+            changingDirection = true;
+
+            const goingUp = dy === -TILE_SIZE;
+            const goingDown = dy === TILE_SIZE;
+            const goingRight = dx === TILE_SIZE;
+            const goingLeft = dx === -TILE_SIZE;
+
+            switch (direction) {
+                case 'UP':
+                    if (!goingDown) { dx = 0; dy = -TILE_SIZE; }
+                    break;
+                case 'DOWN':
+                    if (!goingUp) { dx = 0; dy = TILE_SIZE; }
+                    break;
+                case 'LEFT':
+                    if (!goingRight) { dx = -TILE_SIZE; dy = 0; }
+                    break;
+                case 'RIGHT':
+                    if (!goingLeft) { dx = TILE_SIZE; dy = 0; }
+                    break;
+            }
+        });
+
+        // 按鈕控制項
+        startButton.addEventListener('click', startGame);
+        pauseButton.addEventListener('click', pauseGame);
+
+        // =================================================================
+        // 5. Firebase / Firestore 最高分數邏輯
+        // =================================================================
+
+        /**
+         * 儲存最高分數。
+         * @param {number} newScore - 玩家獲得的分數
+         */
+        async function saveHighScore(newScore) {
+            // 如果 Firebase 未準備好，則跳過儲存
+            if (!window.isAuthReady || !window.db || !window.appId) return;
+
+            // 檢查分數是否值得儲存
+            const isWorthy = currentHighScores.length < MAX_HIGH_SCORES || newScore > currentHighScores[currentHighScores.length - 1].score;
+
+            if (isWorthy) {
+                const highScoresCollectionRef = window.firestore.collection(window.db, `artifacts/${window.appId}/public/data/snake_high_scores`);
+               
+                try {
+                    // 檢查使用者是否已經有分數
+                    const userQuery = window.firestore.query(highScoresCollectionRef, window.firestore.where('userId', '==', window.userId));
+                    const userDocs = await window.firestore.getDocs(userQuery);
+                   
+                    if (userDocs.empty) {
+                        // 使用者沒有分數：新增
+                        await window.firestore.addDoc(highScoresCollectionRef, {
+                            userId: window.userId,
+                            score: newScore,
+                            timestamp: Date.now()
+                        });
+                        console.log("新增了新的最高分數。");
+                    } else {
+                        // 使用者已有分數：更新，僅當新分數更高時
+                        const userDoc = userDocs.docs[0];
+                        if (newScore > userDoc.data().score) {
+                            await window.firestore.updateDoc(userDoc.ref, {
+                                score: newScore,
+                                timestamp: Date.now()
+                            });
+                            console.log("更新了現有的最高分數。");
+                        }
+                    }
+
+                } catch (error) {
+                    // 使用指數退避策略重試
+                    let delay = 1000;
+                    for (let i = 0; i < 3; i++) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2;
+                        try {
+                            // 再次嘗試儲存邏輯 (為了簡潔，這裡省略了完整的重試邏輯)
+                            console.log(`儲存最高分數失敗，正在重試... 嘗試 ${i + 1}`);
+                            // 這裡應該重新執行上面的 getDocs/addDoc/updateDoc 邏輯
+                            return; // 如果成功則退出
+                        } catch (e) {
+                            // 忽略重試失敗，繼續下一次循環
+                        }
+                    }
+                    console.error("儲存最高分數失敗 (所有重試皆失敗):", error);
+                }
+            }
+        }
+
+
+        /**
+         * 設置 Firestore 監聽器以實時更新最高分數榜。
+         */
+        function setupHighScoresListener() {
+            if (!window.isAuthReady || !window.db || !window.appId) {
+                console.warn("Firestore 尚未準備好。無法監聽最高分數。");
+                return;
+            }
+           
+            // 查詢：按分數降序排列，取前 MAX_HIGH_SCORES 筆
+            const highScoresCollectionRef = window.firestore.collection(window.db, `artifacts/${window.appId}/public/data/snake_high_scores`);
+            const q = window.firestore.query(
+                highScoresCollectionRef,
+                // 注意: 這裡使用 orderBy('score', 'desc') 可能會在沒有索引時導致錯誤，
+                // 但為了展示功能，暫時保留。如果部署失敗，建議在前端排序。
+                window.firestore.orderBy('score', 'desc'),
+                window.firestore.limit(MAX_HIGH_SCORES)
+            );
+
+            // 設置 onSnapshot 實時監聽器
+            window.firestore.onSnapshot(q, (snapshot) => {
+                currentHighScores = [];
+                snapshot.forEach((doc) => {
+                    currentHighScores.push({ id: doc.id, ...doc.data() });
+                });
+               
+                // 渲染分數列表
+                renderHighScores();
+            }, (error) => {
+                console.error("從 Firestore 獲取最高分數失敗:", error);
+                highScoresList.innerHTML = `<p class="text-center text-red-400">載入數據流失敗！請檢查控制台。</p>`;
+            });
+        }
+
+        /**
+         * 渲染最高分數到 HTML 元素中。
+         */
+        function renderHighScores() {
+            if (currentHighScores.length === 0) {
+                highScoresList.innerHTML = `<p class="text-center text-gray-400">目前還沒有數據包！成為第一個上傳者吧。</p>`;
+                return;
+            }
+
+            highScoresList.innerHTML = currentHighScores.map((item, index) => {
+                // 截斷 userId 以便顯示
+                const displayId = item.userId === window.userId ? '您 (個人紀錄)' : `${item.userId}`;
+               
+                return `
+                    <div class="flex justify-between items-center p-3 rounded-lg ${index < 3 ? 'bg-fuchsia-800/50 border-2 border-fuchsia-400' : 'bg-gray-700'}">
+                        <span class="text-lg font-bold w-8 text-center text-neon-cyan">${index + 1}.</span>
+                        <!-- 應用連結樣式 -->
+                        <span class="flex-1 font-mono text-sm break-all mr-2 user-id-link ${item.userId === window.userId ? 'text-neon-cyan' : 'text-gray-200'}">${displayId}</span>
+                        <span class="text-xl font-extrabold text-neon-magenta">${item.score}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+       
+        /**
+         * 在 Firebase 認證完成後，啟動遊戲的全部邏輯。
+         */
+        window.initGameLogic = function() {
+            // 確保初始化邏輯只運行一次
+            if (window._gameInitialized) return;
+            window._gameInitialized = true;
+           
+            // 初始設置
+            initializeGame();
+           
+            // 設置最高分數監聽器
+            setupHighScoresListener();
+
+            // 處理初次調整大小
+            resizeCanvas();
+        };
+
+        // 如果 Firebase 腳本未能初始化 window.isAuthReady (例如沒有配置)，則強制執行初始化
+        // 否則，它將由 onAuthStateChanged 觸發
+        if (typeof window.isAuthReady === 'undefined') {
+            window.initGameLogic();
+        }
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,2893 @@
+<!doctype html>
+<html lang="zh-TW">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跑酷遊戲</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Arial', 'Microsoft JhengHei', sans-serif;
+    }
+    
+    html {
+      height: 100%;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, #87CEEB 0%, #E8F4F8 50%, #90EE90 100%);
+      overflow: hidden;
+    }
+
+    #game-header {
+      text-align: center;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    #game-title {
+      font-size: 28px;
+      font-weight: bold;
+      color: #FF6B35;
+      margin: 0 0 8px 0;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    #score-display {
+      font-size: 22px;
+      font-weight: bold;
+      color: #4A90E2;
+      margin: 0;
+      transition: transform 0.2s ease;
+    }
+
+    #score-display.score-up {
+      transform: scale(1.3);
+    }
+
+    #lives-display {
+      font-size: 22px;
+      font-weight: bold;
+      color: #E74C3C;
+      margin-top: 5px;
+    }
+
+    #game-area {
+      position: relative;
+      width: 100%;
+      height: calc(100% - 120px);
+    }
+
+    #ground {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 80px;
+      background: #8B4513;
+      border-top: 4px solid #654321;
+    }
+
+    #ground::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 15px;
+      background: repeating-linear-gradient(
+        90deg,
+        #228B22 0px,
+        #228B22 30px,
+        #32CD32 30px,
+        #32CD32 60px
+      );
+    }
+
+    #player {
+      position: absolute;
+      bottom: 80px;
+      left: 100px;
+      width: 50px;
+      height: 50px;
+      font-size: 45px;
+      transition: opacity 0.3s;
+      z-index: 10;
+    }
+
+    .obstacle {
+      position: absolute;
+      bottom: 80px;
+      min-width: 80px;
+      padding: 10px 15px;
+      font-size: 14px;
+      font-weight: bold;
+      background: #FF6B6B;
+      color: white;
+      border-radius: 8px;
+      border: 3px solid #C92A2A;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      z-index: 5;
+      line-height: 1.3;
+    }
+
+    .star {
+      position: absolute;
+      bottom: 150px;
+      min-width: 80px;
+      padding: 10px 15px;
+      font-size: 14px;
+      font-weight: bold;
+      background: #FFD93D;
+      color: #2C3E50;
+      border-radius: 8px;
+      border: 3px solid #F4A300;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      z-index: 5;
+      line-height: 1.3;
+      animation: sparkle 1s infinite;
+    }
+
+    @keyframes sparkle {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .score-popup {
+      position: absolute;
+      font-size: 28px;
+      font-weight: bold;
+      color: #FFD700;
+      animation: popup 1s ease-out forwards;
+      pointer-events: none;
+      z-index: 50;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    @keyframes popup {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      50% { transform: translateY(-40px) scale(1.5); }
+      100% { opacity: 0; transform: translateY(-80px) scale(1); }
+    }
+
+    #cloud-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 60%;
+      pointer-events: none;
+    }
+
+    .cloud {
+      position: absolute;
+      font-size: 40px;
+      opacity: 0.7;
+    }
+
+    #marquee-container {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 100%;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .marquee-text {
+      position: absolute;
+      white-space: nowrap;
+      font-size: 32px;
+      font-weight: bold;
+      color: rgba(255, 107, 53, 0.15);
+      text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.3);
+      animation: scroll-left 25s linear infinite;
+    }
+
+    @keyframes scroll-left {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+
+    #start-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+
+    #start-screen.hidden {
+      display: none;
+    }
+
+    #start-button {
+      padding: 18px 40px;
+      font-size: 24px;
+      font-weight: bold;
+      color: white;
+      background: #FF6B35;
+      border: none;
+      border-radius: 15px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    #start-button:hover {
+      background: #FF5722;
+      transform: scale(1.05);
+    }
+
+    #start-button:active {
+      transform: scale(0.98);
+    }
+
+    #instructions {
+      color: white;
+      font-size: 18px;
+      margin-bottom: 30px;
+      text-align: center;
+      padding: 0 20px;
+      line-height: 1.8;
+    }
+
+    #game-over-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+
+    #game-over-screen.hidden {
+      display: none;
+    }
+
+    #final-score {
+      color: #FFD700;
+      font-size: 48px;
+      font-weight: bold;
+      margin: 20px 0;
+    }
+
+    #game-over-text {
+      color: white;
+      font-size: 36px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    #restart-button {
+      padding: 15px 35px;
+      font-size: 20px;
+      font-weight: bold;
+      color: white;
+      background: #4A90E2;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+      margin-top: 20px;
+    }
+
+    #restart-button:hover {
+      background: #357ABD;
+      transform: scale(1.05);
+    }
+
+    .jumping {
+      animation: jump 0.8s ease-in-out;
+    }
+
+    @keyframes jump {
+      0% { bottom: 80px; }
+      50% { bottom: 200px; }
+      100% { bottom: 80px; }
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+  <script src="https://cdn.tailwindcss.com" type="text/javascript"></script>
+ </head>
+ <body>
+  <div id="game-container">
+   <div id="game-header">
+    <h1 id="game-title">🏃 跑酷遊戲 🏃</h1>
+    <div id="score-display">
+     分數：<span id="score">0</span>
+    </div>
+    <div id="lives-display">
+     生命：<span id="lives">❤️❤️❤️</span>
+    </div>
+   </div>
+   <div id="game-area">
+    <div id="cloud-container"></div>
+    <div id="marquee-container">
+     <div class="marquee-text">
+      意涵意涵還不錯 ✨ 投給意涵不會錯 ✨ 大家圓她一個夢 ✨ 意涵意涵還不錯 ✨ 投給意涵不會錯 ✨ 大家圓她一個夢 ✨ 意涵意涵還不錯 ✨ 投給意涵不會錯 ✨ 大家圓她一個夢 ✨
+     </div>
+    </div>
+    <div id="player">
+     🏃
+    </div>
+    <div id="ground"></div>
+   </div>
+   <div id="start-screen">
+    <div id="instructions">
+     <div style="font-size: 60px; margin-bottom: 20px;">
+      🏃💨⭐
+     </div><span id="jump-hint">按空白鍵或點擊畫面跳躍</span><br>
+      避開障礙物，收集星星得額外分數！<br>
+      ⭐ 每顆星     +5 分<br>
+      你有 3 條生命，碰到障礙會失去 1 條<br>
+      障礙物速度會慢慢增加
+    </div><button id="start-button">開始遊戲</button>
+   </div>
+   <div id="game-over-screen" class="hidden">
+    <div id="game-over-text">
+     遊戲結束！
+    </div>
+    <div id="final-score">
+     0
+    </div><button id="restart-button">再玩一次</button>
+   </div>
+  </div>
+  <script>
+    const defaultConfig = {
+      game_title: "🏃 跑酷遊戲     ",
+      start_button: "開始遊戲",
+      jump_hint: "按空白鍵或點擊畫面跳躍",
+      primary_color: "#FF6B35",
+      secondary_color: "#4A90E2",
+      ground_color: "#8B4513",
+      sky_start: "#87CEEB",
+      sky_end: "#90EE90",
+      font_family: "Arial"
+    };
+
+    let config = { ...defaultConfig };
+
+    let score = 0;
+    let lives = 3;
+    let gameRunning = false;
+    let isJumping = false;
+    let obstacles = [];
+    let stars = [];
+    let animationFrame;
+    let spawnInterval;
+    let starInterval;
+    let scoreInterval;
+    let obstacleSpeed = 4;
+    let spawnRate = 2000;
+    let invincible = false;
+
+    const gameArea = document.getElementById('game-area');
+    const player = document.getElementById('player');
+    const scoreDisplay = document.getElementById('score');
+    const livesDisplay = document.getElementById('lives');
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const startButton = document.getElementById('start-button');
+    const restartButton = document.getElementById('restart-button');
+    const cloudContainer = document.getElementById('cloud-container');
+
+    function onConfigChange(newConfig) {
+      const gameTitle = document.getElementById('game-title');
+      const startBtn = document.getElementById('start-button');
+      const gameContainer = document.getElementById('game-container');
+      const scoreDisp = document.getElementById('score-display');
+      const livesDisp = document.getElementById('lives-display');
+      const restartBtn = document.getElementById('restart-button');
+      const ground = document.getElementById('ground');
+      const jumpHint = document.getElementById('jump-hint');
+
+      gameTitle.textContent = newConfig.game_title || defaultConfig.game_title;
+      gameTitle.style.color = newConfig.primary_color || defaultConfig.primary_color;
+      gameTitle.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      startBtn.textContent = newConfig.start_button || defaultConfig.start_button;
+      startBtn.style.background = newConfig.primary_color || defaultConfig.primary_color;
+      startBtn.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      jumpHint.textContent = newConfig.jump_hint || defaultConfig.jump_hint;
+
+      scoreDisp.style.color = newConfig.secondary_color || defaultConfig.secondary_color;
+      scoreDisp.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      livesDisp.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      restartBtn.style.background = newConfig.secondary_color || defaultConfig.secondary_color;
+      restartBtn.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      gameContainer.style.background = `linear-gradient(to bottom, ${newConfig.sky_start || defaultConfig.sky_start} 0%, #E8F4F8 50%, ${newConfig.sky_end || defaultConfig.sky_end} 100%)`;
+
+      ground.style.background = newConfig.ground_color || defaultConfig.ground_color;
+    }
+
+    function createClouds() {
+      const cloudEmojis = ['☁️', '☁️', '⛅'];
+      for (let i = 0; i < 5; i++) {
+        const cloud = document.createElement('div');
+        cloud.className = 'cloud';
+        cloud.textContent = cloudEmojis[Math.floor(Math.random() * cloudEmojis.length)];
+        cloud.style.left = Math.random() * 100 + '%';
+        cloud.style.top = Math.random() * 50 + '%';
+        cloudContainer.appendChild(cloud);
+      }
+    }
+
+    function jump() {
+      if (!gameRunning || isJumping) return;
+      
+      isJumping = true;
+      player.classList.add('jumping');
+      
+      setTimeout(() => {
+        isJumping = false;
+        player.classList.remove('jumping');
+      }, 800);
+    }
+
+    function initGame() {
+      createClouds();
+
+      document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          jump();
+        }
+      });
+
+      gameArea.addEventListener('click', (e) => {
+        if (gameRunning && e.target !== startButton && e.target !== restartButton) {
+          jump();
+        }
+      });
+
+      startButton.addEventListener('click', startGame);
+      restartButton.addEventListener('click', resetGame);
+    }
+
+    function startGame() {
+      startScreen.classList.add('hidden');
+      gameRunning = true;
+      score = 0;
+      lives = 3;
+      obstacleSpeed = 4;
+      spawnRate = 2000;
+      obstacles = [];
+      stars = [];
+      invincible = false;
+      scoreDisplay.textContent = score;
+      livesDisplay.textContent = '❤️❤️❤️';
+
+      scoreInterval = setInterval(() => {
+        if (gameRunning) {
+          score++;
+          scoreDisplay.textContent = score;
+          scoreDisplay.classList.add('score-up');
+          setTimeout(() => scoreDisplay.classList.remove('score-up'), 200);
+          
+          if (score % 10 === 0) {
+            obstacleSpeed += 0.5;
+            spawnRate = Math.max(1200, spawnRate - 100);
+            clearInterval(spawnInterval);
+            spawnInterval = setInterval(spawnObstacle, spawnRate);
+          }
+        }
+      }, 500);
+
+      spawnInterval = setInterval(spawnObstacle, spawnRate);
+      starInterval = setInterval(spawnStar, 4500);
+      gameLoop();
+    }
+
+    function spawnObstacle() {
+      if (!gameRunning) return;
+
+      const obstacleTypes = ['段考', '小考', '突擊考', '作業堆積', '被記警告', '午休不能睡', '體育課被借走', '罰站', '被叫家長', '補習到很晚'];
+      const obstacle = document.createElement('div');
+      obstacle.className = 'obstacle';
+      obstacle.textContent = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+      obstacle.style.right = '-120px';
+
+      gameArea.appendChild(obstacle);
+      obstacles.push({
+        element: obstacle,
+        x: gameArea.getBoundingClientRect().width + 120
+      });
+    }
+
+    function spawnStar() {
+      if (!gameRunning) return;
+
+      const starTypes = ['放假', '體育課', '下課時間', '營養午餐', '校外教學', '段考滿分', '被老師稱讚', '跟朋友聊天', '社團活動', '提早放學'];
+      const star = document.createElement('div');
+      star.className = 'star';
+      star.textContent = starTypes[Math.floor(Math.random() * starTypes.length)];
+      star.style.right = '-120px';
+
+      gameArea.appendChild(star);
+      stars.push({
+        element: star,
+        x: gameArea.getBoundingClientRect().width + 120
+      });
+    }
+
+    function showScorePopup(points, x, y) {
+      const popup = document.createElement('div');
+      popup.className = 'score-popup';
+      popup.textContent = '+' + points;
+      popup.style.left = x + 'px';
+      popup.style.top = y + 'px';
+      gameArea.appendChild(popup);
+      setTimeout(() => popup.remove(), 1000);
+    }
+
+    function checkCollision() {
+      const playerRect = player.getBoundingClientRect();
+      
+      for (let obstacle of obstacles) {
+        const obstacleRect = obstacle.element.getBoundingClientRect();
+        
+        if (
+          playerRect.left < obstacleRect.right &&
+          playerRect.right > obstacleRect.left &&
+          playerRect.bottom > obstacleRect.top &&
+          playerRect.top < obstacleRect.bottom
+        ) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+
+      const playerRect = player.getBoundingClientRect();
+
+      obstacles.forEach((obstacle, index) => {
+        obstacle.x -= obstacleSpeed;
+        obstacle.element.style.right = (gameArea.getBoundingClientRect().width - obstacle.x) + 'px';
+
+        if (obstacle.x < -150) {
+          obstacle.element.remove();
+          obstacles.splice(index, 1);
+        }
+      });
+
+      stars.forEach((star, index) => {
+        star.x -= obstacleSpeed;
+        star.element.style.right = (gameArea.getBoundingClientRect().width - star.x) + 'px';
+
+        const starRect = star.element.getBoundingClientRect();
+        if (
+          playerRect.left < starRect.right &&
+          playerRect.right > starRect.left &&
+          playerRect.bottom > starRect.top &&
+          playerRect.top < starRect.bottom
+        ) {
+          score += 5;
+          scoreDisplay.textContent = score;
+          showScorePopup(5, starRect.left, starRect.top);
+          star.element.remove();
+          stars.splice(index, 1);
+        }
+
+        if (star.x < -150) {
+          star.element.remove();
+          stars.splice(index, 1);
+        }
+      });
+
+      if (checkCollision()) {
+        if (!invincible) {
+          lives--;
+          const hearts = ['❤️❤️❤️', '❤️❤️', '❤️', ''];
+          livesDisplay.textContent = hearts[3 - lives];
+          
+          if (lives <= 0) {
+            endGame();
+            return;
+          }
+
+          invincible = true;
+          player.style.opacity = '0.5';
+          setTimeout(() => {
+            invincible = false;
+            player.style.opacity = '1';
+          }, 1500);
+        }
+      }
+
+      animationFrame = requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+      gameRunning = false;
+      clearInterval(spawnInterval);
+      clearInterval(starInterval);
+      clearInterval(scoreInterval);
+      cancelAnimationFrame(animationFrame);
+
+      document.getElementById('final-score').textContent = '得分：' + score;
+      gameOverScreen.classList.remove('hidden');
+
+      obstacles.forEach(obstacle => obstacle.element.remove());
+      obstacles = [];
+      stars.forEach(star => star.element.remove());
+      stars = [];
+    }
+
+    function resetGame() {
+      gameOverScreen.classList.add('hidden');
+      startScreen.classList.remove('hidden');
+      player.style.bottom = '80px';
+      player.classList.remove('jumping');
+      player.style.opacity = '1';
+      isJumping = false;
+    }
+
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig: defaultConfig,
+        onConfigChange: onConfigChange,
+        mapToCapabilities: (config) => ({
+          recolorables: [
+            {
+              get: () => config.primary_color || defaultConfig.primary_color,
+              set: (value) => {
+                config.primary_color = value;
+                window.elementSdk.setConfig({ primary_color: value });
+              }
+            },
+            {
+              get: () => config.secondary_color || defaultConfig.secondary_color,
+              set: (value) => {
+                config.secondary_color = value;
+                window.elementSdk.setConfig({ secondary_color: value });
+              }
+            },
+            {
+              get: () => config.ground_color || defaultConfig.ground_color,
+              set: (value) => {
+                config.ground_color = value;
+                window.elementSdk.setConfig({ ground_color: value });
+              }
+            },
+            {
+              get: () => config.sky_start || defaultConfig.sky_start,
+              set: (value) => {
+                config.sky_start = value;
+                window.elementSdk.setConfig({ sky_start: value });
+              }
+            },
+            {
+              get: () => config.sky_end || defaultConfig.sky_end,
+              set: (value) => {
+                config.sky_end = value;
+                window.elementSdk.setConfig({ sky_end: value });
+              }
+            }
+          ],
+          borderables: [],
+          fontEditable: {
+            get: () => config.font_family || defaultConfig.font_family,
+            set: (value) => {
+              config.font_family = value;
+              window.elementSdk.setConfig({ font_family: value });
+            }
+          },
+          fontSizeable: undefined
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ["game_title", config.game_title || defaultConfig.game_title],
+          ["start_button", config.start_button || defaultConfig.start_button],
+          ["jump_hint", config.jump_hint || defaultConfig.jump_hint]
+        ])
+      });
+
+      config = window.elementSdk.config;
+      onConfigChange(config);
+    }
+
+    initGame();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跑酷遊戲</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Arial', 'Microsoft JhengHei', sans-serif;
+    }
+    
+    html {
+      height: 100%;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, #87CEEB 0%, #E8F4F8 50%, #90EE90 100%);
+      overflow: hidden;
+    }
+
+    #game-header {
+      text-align: center;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    #game-title {
+      font-size: 28px;
+      font-weight: bold;
+      color: #FF6B35;
+      margin: 0 0 8px 0;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    #score-display {
+      font-size: 22px;
+      font-weight: bold;
+      color: #4A90E2;
+      margin: 0;
+      transition: transform 0.2s ease;
+    }
+
+    #score-display.score-up {
+      transform: scale(1.3);
+    }
+
+    #lives-display {
+      font-size: 22px;
+      font-weight: bold;
+      color: #E74C3C;
+      margin-top: 5px;
+    }
+
+    .star {
+      position: absolute;
+      bottom: 150px;
+      min-width: 80px;
+      padding: 10px 15px;
+      font-size: 14px;
+      font-weight: bold;
+      background: #FFD93D;
+      color: #2C3E50;
+      border-radius: 8px;
+      border: 3px solid #F4A300;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      z-index: 5;
+      line-height: 1.3;
+      animation: sparkle 1s infinite;
+    }
+
+    @keyframes sparkle {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .score-popup {
+      position: absolute;
+      font-size: 28px;
+      font-weight: bold;
+      color: #FFD700;
+      animation: popup 1s ease-out forwards;
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    @keyframes popup {
+      0% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-80px); }
+    }
+
+    #game-area {
+      position: relative;
+      width: 100%;
+      height: calc(100% - 100px);
+    }
+
+    #ground {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 80px;
+      background: #8B4513;
+      border-top: 4px solid #654321;
+    }
+
+    #ground::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 15px;
+      background: repeating-linear-gradient(
+        90deg,
+        #228B22 0px,
+        #228B22 30px,
+        #32CD32 30px,
+        #32CD32 60px
+      );
+    }
+
+    #player {
+      position: absolute;
+      bottom: 80px;
+      left: 100px;
+      width: 50px;
+      height: 50px;
+      font-size: 45px;
+      transition: none;
+      z-index: 10;
+    }
+
+    .obstacle {
+      position: absolute;
+      bottom: 80px;
+      min-width: 80px;
+      padding: 10px 15px;
+      font-size: 14px;
+      font-weight: bold;
+      background: #FF6B6B;
+      color: white;
+      border-radius: 8px;
+      border: 3px solid #C92A2A;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      z-index: 5;
+      line-height: 1.3;
+    }
+
+    #cloud-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 60%;
+      pointer-events: none;
+    }
+
+    .cloud {
+      position: absolute;
+      font-size: 40px;
+      opacity: 0.7;
+    }
+
+    #marquee-container {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 100%;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .marquee-text {
+      position: absolute;
+      white-space: nowrap;
+      font-size: 32px;
+      font-weight: bold;
+      color: rgba(255, 107, 53, 0.15);
+      text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.3);
+      animation: scroll-left 25s linear infinite;
+    }
+
+    @keyframes scroll-left {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+
+    #start-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+
+    #start-screen.hidden {
+      display: none;
+    }
+
+    #start-button {
+      padding: 18px 40px;
+      font-size: 24px;
+      font-weight: bold;
+      color: white;
+      background: #FF6B35;
+      border: none;
+      border-radius: 15px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    #start-button:hover {
+      background: #FF5722;
+      transform: scale(1.05);
+    }
+
+    #start-button:active {
+      transform: scale(0.98);
+    }
+
+    #instructions {
+      color: white;
+      font-size: 18px;
+      margin-bottom: 30px;
+      text-align: center;
+      padding: 0 20px;
+      line-height: 1.6;
+    }
+
+    #game-over-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+
+    #game-over-screen.hidden {
+      display: none;
+    }
+
+    #final-score {
+      color: #FFD700;
+      font-size: 48px;
+      font-weight: bold;
+      margin: 20px 0;
+    }
+
+    #game-over-text {
+      color: white;
+      font-size: 36px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    #restart-button {
+      padding: 15px 35px;
+      font-size: 20px;
+      font-weight: bold;
+      color: white;
+      background: #4A90E2;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+      margin-top: 20px;
+    }
+
+    #restart-button:hover {
+      background: #357ABD;
+      transform: scale(1.05);
+    }
+
+    .jumping {
+      animation: jump 0.8s ease-in-out;
+    }
+
+    @keyframes jump {
+      0% { bottom: 80px; }
+      50% { bottom: 200px; }
+      100% { bottom: 80px; }
+    }
+  </style>
+  <div id="game-container">
+   <div id="game-header">
+    <h1 id="game-title">🏃 跑酷遊戲 🏃</h1>
+    <div id="score-display">
+     分數：<span id="score">0</span>
+    </div>
+    <div id="lives-display">
+     生命：<span id="lives">❤️❤️❤️</span>
+    </div>
+   </div>
+   <div id="game-area">
+    <div id="cloud-container"></div>
+    <div id="marquee-container">
+     <div class="marquee-text">
+      意涵意涵還不錯 ✨ 投給意涵不會錯 ✨ 大家圓她一個夢 ✨ 意涵意涵還不錯 ✨ 投給意涵不會錯 ✨ 大家圓她一個夢 ✨ 意涵意涵還不錯 ✨ 投給意涵不會錯 ✨ 大家圓她一個夢 ✨
+     </div>
+    </div>
+    <div id="player">
+     🏃
+    </div>
+    <div id="ground"></div>
+   </div>
+   <div id="start-screen">
+    <div id="instructions">
+     <div style="font-size: 60px; margin-bottom: 20px;">
+      🏃💨
+     </div><span id="jump-hint">按空白鍵或點擊畫面跳躍</span><br>
+      避開障礙物，   得越遠分數越  ！<br>
+      障礙物速度會慢慢增加
+    </div><button id="start-button">開始遊戲</button>
+   </div>
+   <div id="game-over-screen" class="hidden">
+    <div id="game-over-text">
+     遊戲結束！
+    </div>
+    <div id="final-score">
+     0
+    </div><button id="restart-button">再玩一次</button>
+   </div>
+  </div>
+  <script>
+    const defaultConfig = {
+      game_title: "🏃 跑酷遊戲 🏃",
+      start_button: "開始遊戲",
+      jump_hint: "按空白鍵或點擊畫面跳躍",
+      primary_color: "#FF6B35",
+      secondary_color: "#4A90E2",
+      ground_color: "#8B4513",
+      sky_start: "#87CEEB",
+      sky_end: "#90EE90",
+      font_family: "Arial"
+    };
+
+    let config = { ...defaultConfig };
+
+    let score = 0;
+    let lives = 3;
+    let gameRunning = false;
+    let isJumping = false;
+    let obstacles = [];
+    let stars = [];
+    let animationFrame;
+    let spawnInterval;
+    let starInterval;
+    let scoreInterval;
+    let obstacleSpeed = 4;
+    let spawnRate = 2000;
+    let invincible = false;
+
+    const gameArea = document.getElementById('game-area');
+    const player = document.getElementById('player');
+    const scoreDisplay = document.getElementById('score');
+    const livesDisplay = document.getElementById('lives');
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const startButton = document.getElementById('start-button');
+    const restartButton = document.getElementById('restart-button');
+    const cloudContainer = document.getElementById('cloud-container');
+
+    function onConfigChange(newConfig) {
+      const gameTitle = document.getElementById('game-title');
+      const startBtn = document.getElementById('start-button');
+      const gameContainer = document.getElementById('game-container');
+      const scoreDisp = document.getElementById('score-display');
+      const restartBtn = document.getElementById('restart-button');
+      const ground = document.getElementById('ground');
+      const jumpHint = document.getElementById('jump-hint');
+
+      gameTitle.textContent = newConfig.game_title || defaultConfig.game_title;
+      gameTitle.style.color = newConfig.primary_color || defaultConfig.primary_color;
+      gameTitle.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      startBtn.textContent = newConfig.start_button || defaultConfig.start_button;
+      startBtn.style.background = newConfig.primary_color || defaultConfig.primary_color;
+      startBtn.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      jumpHint.textContent = newConfig.jump_hint || defaultConfig.jump_hint;
+
+      scoreDisp.style.color = newConfig.secondary_color || defaultConfig.secondary_color;
+      scoreDisp.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      const livesDisp = document.getElementById('lives-display');
+      livesDisp.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      restartBtn.style.background = newConfig.secondary_color || defaultConfig.secondary_color;
+      restartBtn.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      gameContainer.style.background = `linear-gradient(to bottom, ${newConfig.sky_start || defaultConfig.sky_start} 0%, #E8F4F8 50%, ${newConfig.sky_end || defaultConfig.sky_end} 100%)`;
+
+      ground.style.background = newConfig.ground_color || defaultConfig.ground_color;
+    }
+
+    function createClouds() {
+      const cloudEmojis = ['☁️', '☁️', '   '];
+      for (let i = 0; i < 5; i++) {
+        const cloud = document.createElement('div');
+        cloud.className = 'cloud';
+        cloud.textContent = cloudEmojis[Math.floor(Math.random() * cloudEmojis.length)];
+        cloud.style.left = Math.random() * 100 + '%';
+        cloud.style.top = Math.random() * 50 + '%';
+        cloudContainer.appendChild(cloud);
+      }
+    }
+
+    function jump() {
+      if (!gameRunning || isJumping) return;
+      
+      isJumping = true;
+      player.classList.add('jumping');
+      
+      setTimeout(() => {
+        isJumping = false;
+        player.classList.remove('jumping');
+      }, 800);
+    }
+
+    function initGame() {
+      createClouds();
+
+      document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          jump();
+        }
+      });
+
+      gameArea.addEventListener('click', (e) => {
+        if (gameRunning && e.target !== startButton && e.target !== restartButton) {
+          jump();
+        }
+      });
+
+      startButton.addEventListener('click', startGame);
+      restartButton.addEventListener('click', resetGame);
+    }
+
+    function startGame() {
+      startScreen.classList.add('hidden');
+      gameRunning = true;
+      score = 0;
+      lives = 3;
+      obstacleSpeed = 4;
+      spawnRate = 2000;
+      obstacles = [];
+      stars = [];
+      invincible = false;
+      scoreDisplay.textContent = score;
+      livesDisplay.textContent = '❤️❤️❤️';
+
+      scoreInterval = setInterval(() => {
+        if (gameRunning) {
+          score++;
+          scoreDisplay.textContent = score;
+          scoreDisplay.classList.add('score-up');
+          setTimeout(() => scoreDisplay.classList.remove('score-up'), 200);
+          
+          if (score % 10 === 0) {
+            obstacleSpeed += 0.5;
+            spawnRate = Math.max(1200, spawnRate - 100);
+            clearInterval(spawnInterval);
+            spawnInterval = setInterval(spawnObstacle, spawnRate);
+          }
+        }
+      }, 500);
+
+      spawnInterval = setInterval(spawnObstacle, spawnRate);
+      starInterval = setInterval(spawnStar, 4500);
+      gameLoop();
+    }
+
+    function spawnObstacle() {
+      if (!gameRunning) return;
+
+      const obstacleTypes = ['段考', '小考', '突擊考', '作業堆積', '被記警告', '午休不能睡', '體育課被借走', '罰站', '被叫家長', '補習到很晚'];
+      const obstacle = document.createElement('div');
+      obstacle.className = 'obstacle';
+      obstacle.textContent = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+      obstacle.style.right = '-120px';
+
+      gameArea.appendChild(obstacle);
+      obstacles.push({
+        element: obstacle,
+        x: gameArea.getBoundingClientRect().width + 120
+      });
+    }
+
+    function spawnStar() {
+      if (!gameRunning) return;
+
+      const starTypes = ['放假', '體育課', '下課時間', '營養午餐', '校外教學', '段考滿分', '被老師稱讚', '跟朋友聊天', '社團活動', '提早放學'];
+      const star = document.createElement('div');
+      star.className = 'star';
+      star.textContent = starTypes[Math.floor(Math.random() * starTypes.length)];
+      star.style.right = '-120px';
+
+      gameArea.appendChild(star);
+      stars.push({
+        element: star,
+        x: gameArea.getBoundingClientRect().width + 120
+      });
+    }
+
+    function showScorePopup(points, x, y) {
+      const popup = document.createElement('div');
+      popup.className = 'score-popup';
+      popup.textContent = '+' + points;
+      popup.style.left = x + 'px';
+      popup.style.top = y + 'px';
+      gameArea.appendChild(popup);
+      setTimeout(() => popup.remove(), 1000);
+    }
+
+    function checkCollision() {
+      const playerRect = player.getBoundingClientRect();
+      
+      for (let obstacle of obstacles) {
+        const obstacleRect = obstacle.element.getBoundingClientRect();
+        
+        if (
+          playerRect.left < obstacleRect.right &&
+          playerRect.right > obstacleRect.left &&
+          playerRect.bottom > obstacleRect.top &&
+          playerRect.top < obstacleRect.bottom
+        ) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+
+      const playerRect = player.getBoundingClientRect();
+
+      // 處理障礙物移動
+      obstacles.forEach((obstacle, index) => {
+        obstacle.x -= obstacleSpeed;
+        obstacle.element.style.right = (gameArea.getBoundingClientRect().width - obstacle.x) + 'px';
+
+        if (obstacle.x < -150) {
+          obstacle.element.remove();
+          obstacles.splice(index, 1);
+        }
+      });
+
+      // 處理星星移動和收集
+      stars.forEach((star, index) => {
+        star.x -= obstacleSpeed;
+        star.element.style.right = (gameArea.getBoundingClientRect().width - star.x) + 'px';
+
+        const starRect = star.element.getBoundingClientRect();
+        if (
+          playerRect.left < starRect.right &&
+          playerRect.right > starRect.left &&
+          playerRect.bottom > starRect.top &&
+          playerRect.top < starRect.bottom
+        ) {
+          score += 5;
+          scoreDisplay.textContent = score;
+          showScorePopup(5, starRect.left, starRect.top);
+          star.element.remove();
+          stars.splice(index, 1);
+        }
+
+        if (star.x < -150) {
+          star.element.remove();
+          stars.splice(index, 1);
+        }
+      });
+
+      // 檢查   撞
+      if (checkCollision()) {
+        if (!invincible) {
+          lives--;
+          const hearts = ['❤️❤️❤️', '❤️❤️', '❤️', ''];
+          livesDisplay.textContent = hearts[3 - lives];
+          
+          if (lives <= 0) {
+            endGame();
+            return;
+          }
+
+          invincible = true;
+          player.style.opacity = '0.5';
+          setTimeout(() => {
+            invincible = false;
+            player.style.opacity = '1';
+          }, 1500);
+        }
+      }
+
+      animationFrame = requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+      gameRunning = false;
+      clearInterval(spawnInterval);
+      clearInterval(starInterval);
+      clearInterval(scoreInterval);
+      cancelAnimationFrame(animationFrame);
+
+      document.getElementById('final-score').textContent = '得分：' + score;
+      gameOverScreen.classList.remove('hidden');
+
+      obstacles.forEach(obstacle => obstacle.element.remove());
+      obstacles = [];
+      stars.forEach(star => star.element.remove());
+      stars = [];
+    }
+
+    function resetGame() {
+      gameOverScreen.classList.add('hidden');
+      startScreen.classList.remove('hidden');
+      player.style.bottom = '80px';
+      player.classList.remove('jumping');
+      isJumping = false;
+    }
+
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig: defaultConfig,
+        onConfigChange: onConfigChange,
+        mapToCapabilities: (config) => ({
+          recolorables: [
+            {
+              get: () => config.primary_color || defaultConfig.primary_color,
+              set: (value) => {
+                config.primary_color = value;
+                window.elementSdk.setConfig({ primary_color: value });
+              }
+            },
+            {
+              get: () => config.secondary_color || defaultConfig.secondary_color,
+              set: (value) => {
+                config.secondary_color = value;
+                window.elementSdk.setConfig({ secondary_color: value });
+              }
+            },
+            {
+              get: () => config.ground_color || defaultConfig.ground_color,
+              set: (value) => {
+                config.ground_color = value;
+                window.elementSdk.setConfig({ ground_color: value });
+              }
+            },
+            {
+              get: () => config.sky_start || defaultConfig.sky_start,
+              set: (value) => {
+                config.sky_start = value;
+                window.elementSdk.setConfig({ sky_start: value });
+              }
+            },
+            {
+              get: () => config.sky_end || defaultConfig.sky_end,
+              set: (value) => {
+                config.sky_end = value;
+                window.elementSdk.setConfig({ sky_end: value });
+              }
+            }
+          ],
+          borderables: [],
+          fontEditable: {
+            get: () => config.font_family || defaultConfig.font_family,
+            set: (value) => {
+              config.font_family = value;
+              window.elementSdk.setConfig({ font_family: value });
+            }
+          },
+          fontSizeable: undefined
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ["game_title", config.game_title || defaultConfig.game_title],
+          ["start_button", config.start_button || defaultConfig.start_button],
+          ["jump_hint", config.jump_hint || defaultConfig.jump_hint]
+        ])
+      });
+
+      config = window.elementSdk.config;
+      onConfigChange(config);
+    }
+
+    initGame();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a1c8f4f56a54a40',t:'MTc2MzY5MDA3My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
+<!doctype html>
+<html lang="zh-TW">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跑酷遊戲</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Arial', 'Microsoft JhengHei', sans-serif;
+    }
+    
+    html {
+      height: 100%;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, #87CEEB 0%, #E8F4F8 50%, #90EE90 100%);
+      overflow: hidden;
+    }
+
+    #game-header {
+      text-align: center;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    #game-title {
+      font-size: 28px;
+      font-weight: bold;
+      color: #FF6B35;
+      margin: 0 0 8px 0;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    #score-display {
+      font-size: 22px;
+      font-weight: bold;
+      color: #4A90E2;
+      margin: 0;
+      transition: transform 0.2s ease;
+    }
+
+    #score-display.score-up {
+      transform: scale(1.3);
+    }
+
+    #lives-display {
+      font-size: 22px;
+      font-weight: bold;
+      color: #E74C3C;
+      margin-top: 5px;
+    }
+
+    #game-area {
+      position: relative;
+      width: 100%;
+      height: calc(100% - 120px);
+    }
+
+    #ground {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 80px;
+      background: #8B4513;
+      border-top: 4px solid #654321;
+    }
+
+    #ground::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 15px;
+      background: repeating-linear-gradient(
+        90deg,
+        #228B22 0px,
+        #228B22 30px,
+        #32CD32 30px,
+        #32CD32 60px
+      );
+    }
+
+    #player {
+      position: absolute;
+      bottom: 80px;
+      left: 100px;
+      width: 50px;
+      height: 50px;
+      font-size: 45px;
+      transition: opacity 0.3s;
+      z-index: 10;
+    }
+
+    .obstacle {
+      position: absolute;
+      bottom: 80px;
+      min-width: 80px;
+      padding: 10px 15px;
+      font-size: 14px;
+      font-weight: bold;
+      background: #FF6B6B;
+      color: white;
+      border-radius: 8px;
+      border: 3px solid #C92A2A;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      z-index: 5;
+      line-height: 1.3;
+    }
+
+    .star {
+      position: absolute;
+      bottom: 150px;
+      min-width: 80px;
+      padding: 10px 15px;
+      font-size: 14px;
+      font-weight: bold;
+      background: #FFD93D;
+      color: #2C3E50;
+      border-radius: 8px;
+      border: 3px solid #F4A300;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      z-index: 5;
+      line-height: 1.3;
+      animation: sparkle 1s infinite;
+    }
+
+    @keyframes sparkle {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .score-popup {
+      position: absolute;
+      font-size: 28px;
+      font-weight: bold;
+      color: #FFD700;
+      animation: popup 1s ease-out forwards;
+      pointer-events: none;
+      z-index: 50;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    @keyframes popup {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      50% { transform: translateY(-40px) scale(1.5); }
+      100% { opacity: 0; transform: translateY(-80px) scale(1); }
+    }
+
+    #cloud-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 60%;
+      pointer-events: none;
+    }
+
+    .cloud {
+      position: absolute;
+      font-size: 40px;
+      opacity: 0.7;
+    }
+
+    #marquee-container {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 100%;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .marquee-text {
+      position: absolute;
+      white-space: nowrap;
+      font-size: 32px;
+      font-weight: bold;
+      color: rgba(255, 107, 53, 0.15);
+      text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.3);
+      animation: scroll-left 25s linear infinite;
+    }
+
+    @keyframes scroll-left {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+
+    #start-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+
+    #start-screen.hidden {
+      display: none;
+    }
+
+    #start-button {
+      padding: 18px 40px;
+      font-size: 24px;
+      font-weight: bold;
+      color: white;
+      background: #FF6B35;
+      border: none;
+      border-radius: 15px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    #start-button:hover {
+      background: #FF5722;
+      transform: scale(1.05);
+    }
+
+    #start-button:active {
+      transform: scale(0.98);
+    }
+
+    #instructions {
+      color: white;
+      font-size: 18px;
+      margin-bottom: 30px;
+      text-align: center;
+      padding: 0 20px;
+      line-height: 1.8;
+    }
+
+    #game-over-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+
+    #game-over-screen.hidden {
+      display: none;
+    }
+
+    #final-score {
+      color: #FFD700;
+      font-size: 48px;
+      font-weight: bold;
+      margin: 20px 0;
+    }
+
+    #game-over-text {
+      color: white;
+      font-size: 36px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    #restart-button {
+      padding: 15px 35px;
+      font-size: 20px;
+      font-weight: bold;
+      color: white;
+      background: #4A90E2;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+      margin-top: 20px;
+    }
+
+    #restart-button:hover {
+      background: #357ABD;
+      transform: scale(1.05);
+    }
+
+    .jumping {
+      animation: jump 0.8s ease-in-out;
+    }
+
+    @keyframes jump {
+      0% { bottom: 80px; }
+      50% { bottom: 200px; }
+      100% { bottom: 80px; }
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+  <script src="https://cdn.tailwindcss.com" type="text/javascript"></script>
+ </head>
+ <body>
+  <div id="game-container">
+   <div id="game-header">
+    <h1 id="game-title">🏃 跑酷遊戲 🏃</h1>
+    <div id="score-display">
+     分數：<span id="score">0</span>
+    </div>
+    <div id="lives-display">
+     生命：<span id="lives">❤️❤️❤️</span>
+    </div>
+   </div>
+   <div id="game-area">
+    <div id="cloud-container"></div>
+    <div id="marquee-container">
+     <div class="marquee-text">
+      意涵意涵還不錯 ✨ 投給意涵不會錯 ✨ 大家圓她一個夢 ✨ 意涵意涵還不錯 ✨ 投給意涵不會錯 ✨ 大家圓她一個夢 ✨ 意涵意涵還不錯 ✨ 投給意涵不會錯 ✨ 大家圓她一個夢 ✨
+     </div>
+    </div>
+    <div id="player">
+     🏃
+    </div>
+    <div id="ground"></div>
+   </div>
+   <div id="start-screen">
+    <div id="instructions">
+     <div style="font-size: 60px; margin-bottom: 20px;">
+      🏃💨⭐
+     </div><span id="jump-hint">按空白鍵或點擊畫面跳躍</span><br>
+      避開障礙物，收集星星得額外分數！<br>
+      ⭐ 每顆星     +5 分<br>
+      你有 3 條生命，碰到障礙會失去 1 條<br>
+      障礙物速度會慢慢增加
+    </div><button id="start-button">開始遊戲</button>
+   </div>
+   <div id="game-over-screen" class="hidden">
+    <div id="game-over-text">
+     遊戲結束！
+    </div>
+    <div id="final-score">
+     0
+    </div><button id="restart-button">再玩一次</button>
+   </div>
+  </div>
+  <script>
+    const defaultConfig = {
+      game_title: "🏃 跑酷遊戲     ",
+      start_button: "開始遊戲",
+      jump_hint: "按空白鍵或點擊畫面跳躍",
+      primary_color: "#FF6B35",
+      secondary_color: "#4A90E2",
+      ground_color: "#8B4513",
+      sky_start: "#87CEEB",
+      sky_end: "#90EE90",
+      font_family: "Arial"
+    };
+
+    let config = { ...defaultConfig };
+
+    let score = 0;
+    let lives = 3;
+    let gameRunning = false;
+    let isJumping = false;
+    let obstacles = [];
+    let stars = [];
+    let animationFrame;
+    let spawnInterval;
+    let starInterval;
+    let scoreInterval;
+    let obstacleSpeed = 4;
+    let spawnRate = 2000;
+    let invincible = false;
+
+    const gameArea = document.getElementById('game-area');
+    const player = document.getElementById('player');
+    const scoreDisplay = document.getElementById('score');
+    const livesDisplay = document.getElementById('lives');
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const startButton = document.getElementById('start-button');
+    const restartButton = document.getElementById('restart-button');
+    const cloudContainer = document.getElementById('cloud-container');
+
+    function onConfigChange(newConfig) {
+      const gameTitle = document.getElementById('game-title');
+      const startBtn = document.getElementById('start-button');
+      const gameContainer = document.getElementById('game-container');
+      const scoreDisp = document.getElementById('score-display');
+      const livesDisp = document.getElementById('lives-display');
+      const restartBtn = document.getElementById('restart-button');
+      const ground = document.getElementById('ground');
+      const jumpHint = document.getElementById('jump-hint');
+
+      gameTitle.textContent = newConfig.game_title || defaultConfig.game_title;
+      gameTitle.style.color = newConfig.primary_color || defaultConfig.primary_color;
+      gameTitle.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      startBtn.textContent = newConfig.start_button || defaultConfig.start_button;
+      startBtn.style.background = newConfig.primary_color || defaultConfig.primary_color;
+      startBtn.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      jumpHint.textContent = newConfig.jump_hint || defaultConfig.jump_hint;
+
+      scoreDisp.style.color = newConfig.secondary_color || defaultConfig.secondary_color;
+      scoreDisp.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      livesDisp.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      restartBtn.style.background = newConfig.secondary_color || defaultConfig.secondary_color;
+      restartBtn.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      gameContainer.style.background = `linear-gradient(to bottom, ${newConfig.sky_start || defaultConfig.sky_start} 0%, #E8F4F8 50%, ${newConfig.sky_end || defaultConfig.sky_end} 100%)`;
+
+      ground.style.background = newConfig.ground_color || defaultConfig.ground_color;
+    }
+
+    function createClouds() {
+      const cloudEmojis = ['☁️', '☁️', '⛅'];
+      for (let i = 0; i < 5; i++) {
+        const cloud = document.createElement('div');
+        cloud.className = 'cloud';
+        cloud.textContent = cloudEmojis[Math.floor(Math.random() * cloudEmojis.length)];
+        cloud.style.left = Math.random() * 100 + '%';
+        cloud.style.top = Math.random() * 50 + '%';
+        cloudContainer.appendChild(cloud);
+      }
+    }
+
+    function jump() {
+      if (!gameRunning || isJumping) return;
+      
+      isJumping = true;
+      player.classList.add('jumping');
+      
+      setTimeout(() => {
+        isJumping = false;
+        player.classList.remove('jumping');
+      }, 800);
+    }
+
+    function initGame() {
+      createClouds();
+
+      document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          jump();
+        }
+      });
+
+      gameArea.addEventListener('click', (e) => {
+        if (gameRunning && e.target !== startButton && e.target !== restartButton) {
+          jump();
+        }
+      });
+
+      startButton.addEventListener('click', startGame);
+      restartButton.addEventListener('click', resetGame);
+    }
+
+    function startGame() {
+      startScreen.classList.add('hidden');
+      gameRunning = true;
+      score = 0;
+      lives = 3;
+      obstacleSpeed = 4;
+      spawnRate = 2000;
+      obstacles = [];
+      stars = [];
+      invincible = false;
+      scoreDisplay.textContent = score;
+      livesDisplay.textContent = '❤️❤️❤️';
+
+      scoreInterval = setInterval(() => {
+        if (gameRunning) {
+          score++;
+          scoreDisplay.textContent = score;
+          scoreDisplay.classList.add('score-up');
+          setTimeout(() => scoreDisplay.classList.remove('score-up'), 200);
+          
+          if (score % 10 === 0) {
+            obstacleSpeed += 0.5;
+            spawnRate = Math.max(1200, spawnRate - 100);
+            clearInterval(spawnInterval);
+            spawnInterval = setInterval(spawnObstacle, spawnRate);
+          }
+        }
+      }, 500);
+
+      spawnInterval = setInterval(spawnObstacle, spawnRate);
+      starInterval = setInterval(spawnStar, 4500);
+      gameLoop();
+    }
+
+    function spawnObstacle() {
+      if (!gameRunning) return;
+
+      const obstacleTypes = ['段考', '小考', '突擊考', '作業堆積', '被記警告', '午休不能睡', '體育課被借走', '罰站', '被叫家長', '補習到很晚'];
+      const obstacle = document.createElement('div');
+      obstacle.className = 'obstacle';
+      obstacle.textContent = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+      obstacle.style.right = '-120px';
+
+      gameArea.appendChild(obstacle);
+      obstacles.push({
+        element: obstacle,
+        x: gameArea.getBoundingClientRect().width + 120
+      });
+    }
+
+    function spawnStar() {
+      if (!gameRunning) return;
+
+      const starTypes = ['放假', '體育課', '下課時間', '營養午餐', '校外教學', '段考滿分', '被老師稱讚', '跟朋友聊天', '社團活動', '提早放學'];
+      const star = document.createElement('div');
+      star.className = 'star';
+      star.textContent = starTypes[Math.floor(Math.random() * starTypes.length)];
+      star.style.right = '-120px';
+
+      gameArea.appendChild(star);
+      stars.push({
+        element: star,
+        x: gameArea.getBoundingClientRect().width + 120
+      });
+    }
+
+    function showScorePopup(points, x, y) {
+      const popup = document.createElement('div');
+      popup.className = 'score-popup';
+      popup.textContent = '+' + points;
+      popup.style.left = x + 'px';
+      popup.style.top = y + 'px';
+      gameArea.appendChild(popup);
+      setTimeout(() => popup.remove(), 1000);
+    }
+
+    function checkCollision() {
+      const playerRect = player.getBoundingClientRect();
+      
+      for (let obstacle of obstacles) {
+        const obstacleRect = obstacle.element.getBoundingClientRect();
+        
+        if (
+          playerRect.left < obstacleRect.right &&
+          playerRect.right > obstacleRect.left &&
+          playerRect.bottom > obstacleRect.top &&
+          playerRect.top < obstacleRect.bottom
+        ) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+
+      const playerRect = player.getBoundingClientRect();
+
+      obstacles.forEach((obstacle, index) => {
+        obstacle.x -= obstacleSpeed;
+        obstacle.element.style.right = (gameArea.getBoundingClientRect().width - obstacle.x) + 'px';
+
+        if (obstacle.x < -150) {
+          obstacle.element.remove();
+          obstacles.splice(index, 1);
+        }
+      });
+
+      stars.forEach((star, index) => {
+        star.x -= obstacleSpeed;
+        star.element.style.right = (gameArea.getBoundingClientRect().width - star.x) + 'px';
+
+        const starRect = star.element.getBoundingClientRect();
+        if (
+          playerRect.left < starRect.right &&
+          playerRect.right > starRect.left &&
+          playerRect.bottom > starRect.top &&
+          playerRect.top < starRect.bottom
+        ) {
+          score += 5;
+          scoreDisplay.textContent = score;
+          showScorePopup(5, starRect.left, starRect.top);
+          star.element.remove();
+          stars.splice(index, 1);
+        }
+
+        if (star.x < -150) {
+          star.element.remove();
+          stars.splice(index, 1);
+        }
+      });
+
+      if (checkCollision()) {
+        if (!invincible) {
+          lives--;
+          const hearts = ['❤️❤️❤️', '❤️❤️', '❤️', ''];
+          livesDisplay.textContent = hearts[3 - lives];
+          
+          if (lives <= 0) {
+            endGame();
+            return;
+          }
+
+          invincible = true;
+          player.style.opacity = '0.5';
+          setTimeout(() => {
+            invincible = false;
+            player.style.opacity = '1';
+          }, 1500);
+        }
+      }
+
+      animationFrame = requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+      gameRunning = false;
+      clearInterval(spawnInterval);
+      clearInterval(starInterval);
+      clearInterval(scoreInterval);
+      cancelAnimationFrame(animationFrame);
+
+      document.getElementById('final-score').textContent = '得分：' + score;
+      gameOverScreen.classList.remove('hidden');
+
+      obstacles.forEach(obstacle => obstacle.element.remove());
+      obstacles = [];
+      stars.forEach(star => star.element.remove());
+      stars = [];
+    }
+
+    function resetGame() {
+      gameOverScreen.classList.add('hidden');
+      startScreen.classList.remove('hidden');
+      player.style.bottom = '80px';
+      player.classList.remove('jumping');
+      player.style.opacity = '1';
+      isJumping = false;
+    }
+
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig: defaultConfig,
+        onConfigChange: onConfigChange,
+        mapToCapabilities: (config) => ({
+          recolorables: [
+            {
+              get: () => config.primary_color || defaultConfig.primary_color,
+              set: (value) => {
+                config.primary_color = value;
+                window.elementSdk.setConfig({ primary_color: value });
+              }
+            },
+            {
+              get: () => config.secondary_color || defaultConfig.secondary_color,
+              set: (value) => {
+                config.secondary_color = value;
+                window.elementSdk.setConfig({ secondary_color: value });
+              }
+            },
+            {
+              get: () => config.ground_color || defaultConfig.ground_color,
+              set: (value) => {
+                config.ground_color = value;
+                window.elementSdk.setConfig({ ground_color: value });
+              }
+            },
+            {
+              get: () => config.sky_start || defaultConfig.sky_start,
+              set: (value) => {
+                config.sky_start = value;
+                window.elementSdk.setConfig({ sky_start: value });
+              }
+            },
+            {
+              get: () => config.sky_end || defaultConfig.sky_end,
+              set: (value) => {
+                config.sky_end = value;
+                window.elementSdk.setConfig({ sky_end: value });
+              }
+            }
+          ],
+          borderables: [],
+          fontEditable: {
+            get: () => config.font_family || defaultConfig.font_family,
+            set: (value) => {
+              config.font_family = value;
+              window.elementSdk.setConfig({ font_family: value });
+            }
+          },
+          fontSizeable: undefined
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ["game_title", config.game_title || defaultConfig.game_title],
+          ["start_button", config.start_button || defaultConfig.start_button],
+          ["jump_hint", config.jump_hint || defaultConfig.jump_hint]
+        ])
+      });
+
+      config = window.elementSdk.config;
+      onConfigChange(config);
+    }
+
+    initGame();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跑酷遊戲</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Arial', 'Microsoft JhengHei', sans-serif;
+    }
+    
+    html {
+      height: 100%;
+    }
+
+    #game-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, #87CEEB 0%, #E8F4F8 50%, #90EE90 100%);
+      overflow: hidden;
+    }
+
+    #game-header {
+      text-align: center;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    #game-title {
+      font-size: 28px;
+      font-weight: bold;
+      color: #FF6B35;
+      margin: 0 0 8px 0;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    #score-display {
+      font-size: 22px;
+      font-weight: bold;
+      color: #4A90E2;
+      margin: 0;
+      transition: transform 0.2s ease;
+    }
+
+    #score-display.score-up {
+      transform: scale(1.3);
+    }
+
+    #lives-display {
+      font-size: 22px;
+      font-weight: bold;
+      color: #E74C3C;
+      margin-top: 5px;
+    }
+
+    .star {
+      position: absolute;
+      bottom: 150px;
+      min-width: 80px;
+      padding: 10px 15px;
+      font-size: 14px;
+      font-weight: bold;
+      background: #FFD93D;
+      color: #2C3E50;
+      border-radius: 8px;
+      border: 3px solid #F4A300;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      z-index: 5;
+      line-height: 1.3;
+      animation: sparkle 1s infinite;
+    }
+
+    @keyframes sparkle {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .score-popup {
+      position: absolute;
+      font-size: 28px;
+      font-weight: bold;
+      color: #FFD700;
+      animation: popup 1s ease-out forwards;
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    @keyframes popup {
+      0% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-80px); }
+    }
+
+    #game-area {
+      position: relative;
+      width: 100%;
+      height: calc(100% - 100px);
+    }
+
+    #ground {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 80px;
+      background: #8B4513;
+      border-top: 4px solid #654321;
+    }
+
+    #ground::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 15px;
+      background: repeating-linear-gradient(
+        90deg,
+        #228B22 0px,
+        #228B22 30px,
+        #32CD32 30px,
+        #32CD32 60px
+      );
+    }
+
+    #player {
+      position: absolute;
+      bottom: 80px;
+      left: 100px;
+      width: 50px;
+      height: 50px;
+      font-size: 45px;
+      transition: none;
+      z-index: 10;
+    }
+
+    .obstacle {
+      position: absolute;
+      bottom: 80px;
+      min-width: 80px;
+      padding: 10px 15px;
+      font-size: 14px;
+      font-weight: bold;
+      background: #FF6B6B;
+      color: white;
+      border-radius: 8px;
+      border: 3px solid #C92A2A;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      z-index: 5;
+      line-height: 1.3;
+    }
+
+    #cloud-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 60%;
+      pointer-events: none;
+    }
+
+    .cloud {
+      position: absolute;
+      font-size: 40px;
+      opacity: 0.7;
+    }
+
+    #marquee-container {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 100%;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .marquee-text {
+      position: absolute;
+      white-space: nowrap;
+      font-size: 32px;
+      font-weight: bold;
+      color: rgba(255, 107, 53, 0.15);
+      text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.3);
+      animation: scroll-left 25s linear infinite;
+    }
+
+    @keyframes scroll-left {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+
+    #start-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+
+    #start-screen.hidden {
+      display: none;
+    }
+
+    #start-button {
+      padding: 18px 40px;
+      font-size: 24px;
+      font-weight: bold;
+      color: white;
+      background: #FF6B35;
+      border: none;
+      border-radius: 15px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    #start-button:hover {
+      background: #FF5722;
+      transform: scale(1.05);
+    }
+
+    #start-button:active {
+      transform: scale(0.98);
+    }
+
+    #instructions {
+      color: white;
+      font-size: 18px;
+      margin-bottom: 30px;
+      text-align: center;
+      padding: 0 20px;
+      line-height: 1.6;
+    }
+
+    #game-over-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+
+    #game-over-screen.hidden {
+      display: none;
+    }
+
+    #final-score {
+      color: #FFD700;
+      font-size: 48px;
+      font-weight: bold;
+      margin: 20px 0;
+    }
+
+    #game-over-text {
+      color: white;
+      font-size: 36px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    #restart-button {
+      padding: 15px 35px;
+      font-size: 20px;
+      font-weight: bold;
+      color: white;
+      background: #4A90E2;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+      margin-top: 20px;
+    }
+
+    #restart-button:hover {
+      background: #357ABD;
+      transform: scale(1.05);
+    }
+
+    .jumping {
+      animation: jump 0.8s ease-in-out;
+    }
+
+    @keyframes jump {
+      0% { bottom: 80px; }
+      50% { bottom: 200px; }
+      100% { bottom: 80px; }
+    }
+  </style>
+  <div id="game-container">
+   <div id="game-header">
+    <h1 id="game-title">🏃 跑酷遊戲 🏃</h1>
+    <div id="score-display">
+     分數：<span id="score">0</span>
+    </div>
+    <div id="lives-display">
+     生命：<span id="lives">❤️❤️❤️</span>
+    </div>
+   </div>
+   <div id="game-area">
+    <div id="cloud-container"></div>
+    <div id="marquee-container">
+     <div class="marquee-text">
+      意涵意涵還不錯 ✨ 投給意涵不會錯 ✨ 大家圓她一個夢 ✨ 意涵意涵還不錯 ✨ 投給意涵不會錯 ✨ 大家圓她一個夢 ✨ 意涵意涵還不錯 ✨ 投給意涵不會錯 ✨ 大家圓她一個夢 ✨
+     </div>
+    </div>
+    <div id="player">
+     🏃
+    </div>
+    <div id="ground"></div>
+   </div>
+   <div id="start-screen">
+    <div id="instructions">
+     <div style="font-size: 60px; margin-bottom: 20px;">
+      🏃💨
+     </div><span id="jump-hint">按空白鍵或點擊畫面跳躍</span><br>
+      避開障礙物，   得越遠分數越  ！<br>
+      障礙物速度會慢慢增加
+    </div><button id="start-button">開始遊戲</button>
+   </div>
+   <div id="game-over-screen" class="hidden">
+    <div id="game-over-text">
+     遊戲結束！
+    </div>
+    <div id="final-score">
+     0
+    </div><button id="restart-button">再玩一次</button>
+   </div>
+  </div>
+  <script>
+    const defaultConfig = {
+      game_title: "🏃 跑酷遊戲 🏃",
+      start_button: "開始遊戲",
+      jump_hint: "按空白鍵或點擊畫面跳躍",
+      primary_color: "#FF6B35",
+      secondary_color: "#4A90E2",
+      ground_color: "#8B4513",
+      sky_start: "#87CEEB",
+      sky_end: "#90EE90",
+      font_family: "Arial"
+    };
+
+    let config = { ...defaultConfig };
+
+    let score = 0;
+    let lives = 3;
+    let gameRunning = false;
+    let isJumping = false;
+    let obstacles = [];
+    let stars = [];
+    let animationFrame;
+    let spawnInterval;
+    let starInterval;
+    let scoreInterval;
+    let obstacleSpeed = 4;
+    let spawnRate = 2000;
+    let invincible = false;
+
+    const gameArea = document.getElementById('game-area');
+    const player = document.getElementById('player');
+    const scoreDisplay = document.getElementById('score');
+    const livesDisplay = document.getElementById('lives');
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const startButton = document.getElementById('start-button');
+    const restartButton = document.getElementById('restart-button');
+    const cloudContainer = document.getElementById('cloud-container');
+
+    function onConfigChange(newConfig) {
+      const gameTitle = document.getElementById('game-title');
+      const startBtn = document.getElementById('start-button');
+      const gameContainer = document.getElementById('game-container');
+      const scoreDisp = document.getElementById('score-display');
+      const restartBtn = document.getElementById('restart-button');
+      const ground = document.getElementById('ground');
+      const jumpHint = document.getElementById('jump-hint');
+
+      gameTitle.textContent = newConfig.game_title || defaultConfig.game_title;
+      gameTitle.style.color = newConfig.primary_color || defaultConfig.primary_color;
+      gameTitle.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      startBtn.textContent = newConfig.start_button || defaultConfig.start_button;
+      startBtn.style.background = newConfig.primary_color || defaultConfig.primary_color;
+      startBtn.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      jumpHint.textContent = newConfig.jump_hint || defaultConfig.jump_hint;
+
+      scoreDisp.style.color = newConfig.secondary_color || defaultConfig.secondary_color;
+      scoreDisp.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      const livesDisp = document.getElementById('lives-display');
+      livesDisp.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      restartBtn.style.background = newConfig.secondary_color || defaultConfig.secondary_color;
+      restartBtn.style.fontFamily = `${newConfig.font_family || defaultConfig.font_family}, 'Microsoft JhengHei', sans-serif`;
+
+      gameContainer.style.background = `linear-gradient(to bottom, ${newConfig.sky_start || defaultConfig.sky_start} 0%, #E8F4F8 50%, ${newConfig.sky_end || defaultConfig.sky_end} 100%)`;
+
+      ground.style.background = newConfig.ground_color || defaultConfig.ground_color;
+    }
+
+    function createClouds() {
+      const cloudEmojis = ['☁️', '☁️', '   '];
+      for (let i = 0; i < 5; i++) {
+        const cloud = document.createElement('div');
+        cloud.className = 'cloud';
+        cloud.textContent = cloudEmojis[Math.floor(Math.random() * cloudEmojis.length)];
+        cloud.style.left = Math.random() * 100 + '%';
+        cloud.style.top = Math.random() * 50 + '%';
+        cloudContainer.appendChild(cloud);
+      }
+    }
+
+    function jump() {
+      if (!gameRunning || isJumping) return;
+      
+      isJumping = true;
+      player.classList.add('jumping');
+      
+      setTimeout(() => {
+        isJumping = false;
+        player.classList.remove('jumping');
+      }, 800);
+    }
+
+    function initGame() {
+      createClouds();
+
+      document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          jump();
+        }
+      });
+
+      gameArea.addEventListener('click', (e) => {
+        if (gameRunning && e.target !== startButton && e.target !== restartButton) {
+          jump();
+        }
+      });
+
+      startButton.addEventListener('click', startGame);
+      restartButton.addEventListener('click', resetGame);
+    }
+
+    function startGame() {
+      startScreen.classList.add('hidden');
+      gameRunning = true;
+      score = 0;
+      lives = 3;
+      obstacleSpeed = 4;
+      spawnRate = 2000;
+      obstacles = [];
+      stars = [];
+      invincible = false;
+      scoreDisplay.textContent = score;
+      livesDisplay.textContent = '❤️❤️❤️';
+
+      scoreInterval = setInterval(() => {
+        if (gameRunning) {
+          score++;
+          scoreDisplay.textContent = score;
+          scoreDisplay.classList.add('score-up');
+          setTimeout(() => scoreDisplay.classList.remove('score-up'), 200);
+          
+          if (score % 10 === 0) {
+            obstacleSpeed += 0.5;
+            spawnRate = Math.max(1200, spawnRate - 100);
+            clearInterval(spawnInterval);
+            spawnInterval = setInterval(spawnObstacle, spawnRate);
+          }
+        }
+      }, 500);
+
+      spawnInterval = setInterval(spawnObstacle, spawnRate);
+      starInterval = setInterval(spawnStar, 4500);
+      gameLoop();
+    }
+
+    function spawnObstacle() {
+      if (!gameRunning) return;
+
+      const obstacleTypes = ['段考', '小考', '突擊考', '作業堆積', '被記警告', '午休不能睡', '體育課被借走', '罰站', '被叫家長', '補習到很晚'];
+      const obstacle = document.createElement('div');
+      obstacle.className = 'obstacle';
+      obstacle.textContent = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+      obstacle.style.right = '-120px';
+
+      gameArea.appendChild(obstacle);
+      obstacles.push({
+        element: obstacle,
+        x: gameArea.getBoundingClientRect().width + 120
+      });
+    }
+
+    function spawnStar() {
+      if (!gameRunning) return;
+
+      const starTypes = ['放假', '體育課', '下課時間', '營養午餐', '校外教學', '段考滿分', '被老師稱讚', '跟朋友聊天', '社團活動', '提早放學'];
+      const star = document.createElement('div');
+      star.className = 'star';
+      star.textContent = starTypes[Math.floor(Math.random() * starTypes.length)];
+      star.style.right = '-120px';
+
+      gameArea.appendChild(star);
+      stars.push({
+        element: star,
+        x: gameArea.getBoundingClientRect().width + 120
+      });
+    }
+
+    function showScorePopup(points, x, y) {
+      const popup = document.createElement('div');
+      popup.className = 'score-popup';
+      popup.textContent = '+' + points;
+      popup.style.left = x + 'px';
+      popup.style.top = y + 'px';
+      gameArea.appendChild(popup);
+      setTimeout(() => popup.remove(), 1000);
+    }
+
+    function checkCollision() {
+      const playerRect = player.getBoundingClientRect();
+      
+      for (let obstacle of obstacles) {
+        const obstacleRect = obstacle.element.getBoundingClientRect();
+        
+        if (
+          playerRect.left < obstacleRect.right &&
+          playerRect.right > obstacleRect.left &&
+          playerRect.bottom > obstacleRect.top &&
+          playerRect.top < obstacleRect.bottom
+        ) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function gameLoop() {
+      if (!gameRunning) return;
+
+      const playerRect = player.getBoundingClientRect();
+
+      // 處理障礙物移動
+      obstacles.forEach((obstacle, index) => {
+        obstacle.x -= obstacleSpeed;
+        obstacle.element.style.right = (gameArea.getBoundingClientRect().width - obstacle.x) + 'px';
+
+        if (obstacle.x < -150) {
+          obstacle.element.remove();
+          obstacles.splice(index, 1);
+        }
+      });
+
+      // 處理星星移動和收集
+      stars.forEach((star, index) => {
+        star.x -= obstacleSpeed;
+        star.element.style.right = (gameArea.getBoundingClientRect().width - star.x) + 'px';
+
+        const starRect = star.element.getBoundingClientRect();
+        if (
+          playerRect.left < starRect.right &&
+          playerRect.right > starRect.left &&
+          playerRect.bottom > starRect.top &&
+          playerRect.top < starRect.bottom
+        ) {
+          score += 5;
+          scoreDisplay.textContent = score;
+          showScorePopup(5, starRect.left, starRect.top);
+          star.element.remove();
+          stars.splice(index, 1);
+        }
+
+        if (star.x < -150) {
+          star.element.remove();
+          stars.splice(index, 1);
+        }
+      });
+
+      // 檢查   撞
+      if (checkCollision()) {
+        if (!invincible) {
+          lives--;
+          const hearts = ['❤️❤️❤️', '❤️❤️', '❤️', ''];
+          livesDisplay.textContent = hearts[3 - lives];
+          
+          if (lives <= 0) {
+            endGame();
+            return;
+          }
+
+          invincible = true;
+          player.style.opacity = '0.5';
+          setTimeout(() => {
+            invincible = false;
+            player.style.opacity = '1';
+          }, 1500);
+        }
+      }
+
+      animationFrame = requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+      gameRunning = false;
+      clearInterval(spawnInterval);
+      clearInterval(starInterval);
+      clearInterval(scoreInterval);
+      cancelAnimationFrame(animationFrame);
+
+      document.getElementById('final-score').textContent = '得分：' + score;
+      gameOverScreen.classList.remove('hidden');
+
+      obstacles.forEach(obstacle => obstacle.element.remove());
+      obstacles = [];
+      stars.forEach(star => star.element.remove());
+      stars = [];
+    }
+
+    function resetGame() {
+      gameOverScreen.classList.add('hidden');
+      startScreen.classList.remove('hidden');
+      player.style.bottom = '80px';
+      player.classList.remove('jumping');
+      isJumping = false;
+    }
+
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig: defaultConfig,
+        onConfigChange: onConfigChange,
+        mapToCapabilities: (config) => ({
+          recolorables: [
+            {
+              get: () => config.primary_color || defaultConfig.primary_color,
+              set: (value) => {
+                config.primary_color = value;
+                window.elementSdk.setConfig({ primary_color: value });
+              }
+            },
+            {
+              get: () => config.secondary_color || defaultConfig.secondary_color,
+              set: (value) => {
+                config.secondary_color = value;
+                window.elementSdk.setConfig({ secondary_color: value });
+              }
+            },
+            {
+              get: () => config.ground_color || defaultConfig.ground_color,
+              set: (value) => {
+                config.ground_color = value;
+                window.elementSdk.setConfig({ ground_color: value });
+              }
+            },
+            {
+              get: () => config.sky_start || defaultConfig.sky_start,
+              set: (value) => {
+                config.sky_start = value;
+                window.elementSdk.setConfig({ sky_start: value });
+              }
+            },
+            {
+              get: () => config.sky_end || defaultConfig.sky_end,
+              set: (value) => {
+                config.sky_end = value;
+                window.elementSdk.setConfig({ sky_end: value });
+              }
+            }
+          ],
+          borderables: [],
+          fontEditable: {
+            get: () => config.font_family || defaultConfig.font_family,
+            set: (value) => {
+              config.font_family = value;
+              window.elementSdk.setConfig({ font_family: value });
+            }
+          },
+          fontSizeable: undefined
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ["game_title", config.game_title || defaultConfig.game_title],
+          ["start_button", config.start_button || defaultConfig.start_button],
+          ["jump_hint", config.jump_hint || defaultConfig.jump_hint]
+        ])
+      });
+
+      config = window.elementSdk.config;
+      onConfigChange(config);
+    }
+
+    initGame();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a1c8f4f56a54a40',t:'MTc2MzY5MDA3My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
+

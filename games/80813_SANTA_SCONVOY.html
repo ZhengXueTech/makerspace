@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎄 聖誕隊伍遊戲 🎄</title>
+    <style>
+        /* --- 聖誕 8-bit 風格 CSS --- */
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            /* 深藍色背景，模擬聖誕夜 */
+            background-color: #0A192F; 
+            color: #EFEFEF;
+            margin: 0;
+        }
+
+        .game-container {
+            text-align: center;
+            padding: 20px;
+            /* 聖誕紅邊框 */
+            background: #4B0000; 
+            border: 5px ridge #C0C0C0; /* 銀色光澤 */
+            box-shadow: 0 0 0 8px #181D26;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            /* 節日金色/黃色 */
+            color: #FFD700; 
+            text-shadow: 2px 2px #333;
+        }
+
+        #score-display {
+            font-size: 1.8em;
+            font-weight: bold;
+            /* 聖誕綠色 */
+            color: #008000; 
+            margin-bottom: 15px;
+            text-shadow: 1px 1px #000;
+        }
+
+        #gameCanvas {
+            border: 3px solid #666;
+            /* 聖誕夜光/雪地背景 */
+            background-color: #B0E0E6; 
+            image-rendering: pixelated; 
+            box-shadow: inset 0 0 10px #000;
+        }
+        
+        /* 遊戲結束/開始 覆蓋層 */
+        #overlay {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7); 
+            /* 溫暖的淺色 */
+            color: #FFFAFA; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            border: 2px dashed #C0C0C0; /* 銀色虛線 */
+        }
+
+        #overlay-message {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        #startButton {
+            padding: 10px 20px;
+            font-size: 1.2em;
+            cursor: pointer;
+            /* 鮮紅色按鈕 */
+            background: #CC0000; 
+            color: #FFF;
+            border: 3px solid #008000; /* 綠色邊框 */
+            box-shadow: 2px 2px #000;
+            font-weight: bold;
+            transition: background-color 0.1s;
+        }
+
+        #startButton:hover {
+            background-color: #AA0000;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>[ S A N T A ' S   C O N V O Y ]</h1>
+        <div id="score-display">隊伍人數: 1</div>
+
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        
+        <div id="overlay">
+            <h2 id="overlay-message">點擊開始遊戲</h2>
+            <button id="startButton">開始/重新開始</button>
+        </div>
+    </div>
+
+    <script>
+        // --- JavaScript 遊戲邏輯 ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score-display');
+        const overlay = document.getElementById('overlay');
+        const overlayMessage = document.getElementById('overlay-message');
+        const startButton = document.getElementById('startButton');
+
+        const TILE_SIZE = 20; // 每個方塊的大小
+        const COLS = canvas.width / TILE_SIZE;
+        const ROWS = canvas.height / TILE_SIZE;
+        
+        // 遊戲核心變數
+        let team; 
+        let powerUp; // 禮物
+        let dx; 
+        let dy; 
+        let teamSize; 
+        let gameInterval; 
+        let isPaused = true;
+        let baseSpeed = 150; 
+        const speedFactor = 5; 
+
+        // --- 繪製函式 ---
+        function drawSquare(x, y, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            // 8-bit 風格邊框
+            ctx.strokeStyle = '#000'; 
+            ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+
+        function drawGame() {
+            // 繪製背景 (雪地/夜空)
+            ctx.fillStyle = '#B0E0E6';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 繪製道具/禮物 (金色/黃色)
+            drawSquare(powerUp.x, powerUp.y, '#FFD700');
+
+            // 繪製隊伍成員
+            team.forEach((segment, index) => {
+                // 隊長 (聖誕紅 - Santa Red)
+                const color = index === 0 ? '#CC0000' : '#008000'; // 隊長(紅) vs 隊員(綠)
+                drawSquare(segment.x, segment.y, color);
+            });
+        }
+        
+        // --- 道具/禮物放置邏輯 ---
+        function placePowerUp() {
+            let randX, randY, onTeam;
+
+            do {
+                randX = Math.floor(Math.random() * COLS);
+                randY = Math.floor(Math.random() * ROWS);
+                
+                onTeam = team.some(segment => segment.x === randX && segment.y === randY);
+            } while (onTeam);
+            
+            powerUp = { x: randX, y: randY };
+        }
+
+        // --- 速度計算邏輯 ---
+        function calculateSpeed() {
+            let newSpeed = baseSpeed - ((teamSize - 1) * speedFactor); 
+            return Math.max(newSpeed, 50); 
+        }
+
+        // --- 遊戲迴圈 ---
+        function gameLoop() {
+            if (isPaused) return;
+
+            // 1. 更新位置
+            const head = { x: team[0].x + dx, y: team[0].y + dy };
+            team.unshift(head);
+
+            // 2. 檢查碰撞
+            if (checkCollision()) {
+                gameOver();
+                return;
+            }
+            
+            // 3. 檢查禮物
+            if (head.x === powerUp.x && head.y === powerUp.y) {
+                teamSize++;
+                scoreDisplay.textContent = `隊伍人數: ${teamSize}`;
+                placePowerUp(); 
+                
+                // *** 速度增加邏輯保持不變 ***
+                const currentSpeed = calculateSpeed();
+                clearInterval(gameInterval);
+                gameInterval = setInterval(gameLoop, currentSpeed);
+            } else {
+                team.pop(); 
+            }
+            
+            // 4. 繪製畫面
+            drawGame();
+        }
+
+        // --- 碰撞檢查 (撞牆和撞隊員) ---
+        function checkCollision() {
+            const head = team[0];
+            
+            // 撞牆
+            const hitWall = head.x < 0 || head.x >= COLS || 
+                            head.y < 0 || head.y >= ROWS;
+            if (hitWall) return true;
+
+            // 撞隊員 
+            for (let i = 1; i < team.length; i++) {
+                if (head.x === team[i].x && head.y === team[i].y) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        // --- 遊戲結束 ---
+        function gameOver() {
+            clearInterval(gameInterval);
+            isPaused = true;
+            overlayMessage.innerHTML = `聖誕老人撞車了！<br>最終隊伍人數: ${teamSize}`;
+            overlay.classList.remove('hidden');
+        }
+
+        // --- 初始化遊戲 ---
+        function initGame() {
+            team = [{ x: 10, y: 10 }]; 
+            dx = 1; 
+            dy = 0;
+            teamSize = 1;
+            scoreDisplay.textContent = `隊伍人數: ${teamSize}`;
+            isPaused = false;
+            
+            overlay.classList.add('hidden');
+            placePowerUp();
+            drawGame(); 
+            
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(gameLoop, baseSpeed); 
+        }
+
+        // --- 鍵盤事件監聽 ---
+        document.addEventListener('keydown', changeDirection);
+
+        function changeDirection(event) {
+            if (isPaused) return;
+
+            const key = event.key;
+            
+            const goingUp = dy === -1;
+            const goingDown = dy === 1;
+            const goingRight = dx === 1;
+            const goingLeft = dx === -1;
+
+            if (key === 'ArrowLeft' && !goingRight) {
+                dx = -1; dy = 0;
+            } else if (key === 'ArrowUp' && !goingDown) {
+                dx = 0; dy = -1;
+            } else if (key === 'ArrowRight' && !goingLeft) {
+                dx = 1; dy = 0;
+            } else if (key === 'ArrowDown' && !goingUp) {
+                dx = 0; dy = 1;
+            }
+        }
+
+        // --- 開始按鈕事件 ---
+        startButton.addEventListener('click', initGame);
+
+        // 初始載入
+        window.onload = function() {
+            // 顯示歡迎畫面
+            overlayMessage.innerHTML = "🎄 聖誕隊伍遊戲 🎁<br>收集禮物，壯大你的隊伍！";
+            overlay.classList.remove('hidden');
+            scoreDisplay.textContent = "隊伍人數: 1";
+            
+            // 初始繪圖（清空畫布）
+            ctx.fillStyle = '#B0E0E6';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        };
+    </script>
+</body>
+</html>

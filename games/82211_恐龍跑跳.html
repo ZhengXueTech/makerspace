@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript 小恐龍遊戲</title>
+    
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f7f7f7;
+            font-family: Arial, sans-serif;
+        }
+
+        #game-container {
+            position: relative;
+            width: 600px;
+            height: 150px;
+            border: 2px solid #333;
+            overflow: hidden; /* 確保仙人掌不會超出邊界 */
+            background-color: #fff;
+        }
+
+        #ground {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 10px;
+            background-color: #333;
+        }
+
+        /* 恐龍樣式 */
+        #dino {
+            position: absolute;
+            width: 20px;
+            height: 40px;
+            background-color: #000; /* 恐龍用黑色方塊代替 */
+            bottom: 10px; /* 站立在地面上 */
+            left: 50px;
+            transition: bottom 0.1s; /* 使跳躍更平滑 */
+        }
+
+        /* 仙人掌樣式 */
+        .cactus {
+            position: absolute;
+            width: 15px;
+            height: 30px;
+            background-color: #5b994b; /* 綠色 */
+            bottom: 10px; /* 站立在地面上 */
+            left: 600px; /* 從右邊外側開始 */
+            border-radius: 5px;
+        }
+
+        #score {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #555;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.9);
+            display: none; /* 預設隱藏 */
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            font-size: 2em;
+            font-weight: bold;
+            color: #e74c3c;
+            text-align: center;
+            z-index: 10;
+        }
+
+        #restart-button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            font-size: 0.6em;
+            cursor: pointer;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+        }
+
+        #instructions {
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="ground"></div>
+        <div id="dino"></div>
+        <div id="score">0</div>
+        
+        <div id="game-over">
+            GAME OVER
+            <span id="final-score"></span>
+            <button id="restart-button">重新開始</button>
+        </div>
+    </div>
+
+    <div id="instructions">
+        按 **空白鍵** 或 **向上箭頭** 跳躍！
+    </div>
+
+    <script>
+        // 獲取 DOM 元素
+        const gameContainer = document.getElementById('game-container');
+        const dino = document.getElementById('dino');
+        const scoreDisplay = document.getElementById('score');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const restartButton = document.getElementById('restart-button');
+
+        // 遊戲狀態變數
+        let isJumping = false;
+        let isGameOver = false;
+        let dinoBottom = 10; // 恐龍底部距離地面
+        let score = 0;
+        let gameSpeed = 5; // 障礙物移動速度
+        let cactusCreationInterval;
+        let gameLoopInterval;
+        let scoreInterval;
+
+        // --- 恐龍跳躍邏輯 ---
+        function jump() {
+            if (isJumping || isGameOver) return;
+            isJumping = true;
+
+            let jumpHeight = 0;
+            const maxJumpHeight = 80; // 最大跳躍高度 (離地面 10 + 80 = 90px)
+
+            // 上升
+            const upInterval = setInterval(() => {
+                if (jumpHeight < maxJumpHeight) {
+                    jumpHeight += 5;
+                    dinoBottom = 10 + jumpHeight;
+                    dino.style.bottom = dinoBottom + 'px';
+                } else {
+                    clearInterval(upInterval);
+                    // 下降
+                    const downInterval = setInterval(() => {
+                        if (dinoBottom > 10) {
+                            dinoBottom -= 5;
+                            dino.style.bottom = dinoBottom + 'px';
+                        } else {
+                            clearInterval(downInterval);
+                            dinoBottom = 10;
+                            dino.style.bottom = dinoBottom + 'px';
+                            isJumping = false;
+                        }
+                    }, 20); // 下降速度
+                }
+            }, 20); // 上升速度
+        }
+
+        // --- 障礙物邏輯 ---
+        function createCactus() {
+            if (isGameOver) return;
+
+            const cactus = document.createElement('div');
+            cactus.classList.add('cactus');
+            gameContainer.appendChild(cactus);
+
+            let cactusLeft = 600;
+
+            const cactusInterval = setInterval(() => {
+                if (isGameOver) {
+                    clearInterval(cactusInterval);
+                    return;
+                }
+
+                cactusLeft -= gameSpeed;
+                cactus.style.left = cactusLeft + 'px';
+
+                // 檢查碰撞
+                if (checkCollision(cactus)) {
+                    gameOver();
+                    clearInterval(cactusInterval);
+                    return;
+                }
+
+                // 移除超出左側的仙人掌
+                if (cactusLeft < -20) {
+                    clearInterval(cactusInterval);
+                    gameContainer.removeChild(cactus);
+                }
+            }, 20);
+        }
+
+        // --- 碰撞檢測 ---
+        function checkCollision(cactus) {
+            const dinoRect = dino.getBoundingClientRect();
+            const cactusRect = cactus.getBoundingClientRect();
+            const containerRect = gameContainer.getBoundingClientRect();
+
+            // 將 Rect 座標轉換為相對於遊戲容器
+            const dinoX = dinoRect.left - containerRect.left;
+            const dinoY = dinoRect.top - containerRect.top;
+            const cactusX = cactusRect.left - containerRect.left;
+            const cactusY = cactusRect.top - containerRect.top;
+
+            // 碰撞條件：x 軸和 y 軸有重疊
+            return (
+                dinoX < cactusX + cactusRect.width &&
+                dinoX + dinoRect.width > cactusX &&
+                dinoY < cactusY + cactusRect.height &&
+                dinoY + dinoRect.height > cactusY
+            );
+        }
+
+        // --- 遊戲結束 ---
+        function gameOver() {
+            isGameOver = true;
+            clearInterval(cactusCreationInterval);
+            clearInterval(scoreInterval);
+            
+            // 停止所有障礙物
+            document.querySelectorAll('.cactus').forEach(cactus => {
+                // 停止 CSS 動畫/移動，雖然這裡是用 JS interval 但這是一個良好的習慣
+            });
+
+            finalScoreDisplay.textContent = `最終分數: ${score}`;
+            gameOverScreen.style.display = 'flex';
+        }
+
+        // --- 分數更新 ---
+        function updateScore() {
+            if (isGameOver) return;
+            score++;
+            scoreDisplay.textContent = score;
+
+            // 讓遊戲加速 (每 100 分加速一次)
+            if (score > 0 && score % 100 === 0) {
+                gameSpeed += 1;
+                console.log("速度提升! 新速度: " + gameSpeed);
+            }
+        }
+
+        // --- 遊戲初始化/重置 ---
+        function startGame() {
+            // 清理舊遊戲狀態
+            document.querySelectorAll('.cactus').forEach(c => c.remove());
+            clearInterval(cactusCreationInterval);
+            clearInterval(scoreInterval);
+            
+            // 重置變數
+            isJumping = false;
+            isGameOver = false;
+            dinoBottom = 10;
+            dino.style.bottom = dinoBottom + 'px';
+            score = 0;
+            scoreDisplay.textContent = score;
+            gameSpeed = 5;
+            gameOverScreen.style.display = 'none';
+
+            // 啟動遊戲循環
+            // 障礙物生成間隔 (隨機 1.5 秒到 3 秒)
+            cactusCreationInterval = setInterval(() => {
+                createCactus();
+            }, Math.random() * 1500 + 1500); 
+
+            // 分數更新間隔
+            scoreInterval = setInterval(updateScore, 100);
+        }
+        
+        // --- 事件監聽 ---
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Space' || event.code === 'ArrowUp') {
+                if (isGameOver) {
+                    startGame(); // 遊戲結束時按下空白鍵重新開始
+                } else {
+                    jump();
+                }
+            }
+        });
+
+        restartButton.addEventListener('click', startGame);
+
+        // 首次啟動遊戲
+        startGame();
+
+    </script>
+</body>
+</html>
